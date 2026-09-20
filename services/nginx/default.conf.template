@@ -17,6 +17,15 @@ server {
     server_tokens off;
     server_name web;
 
+    # Docker's embedded DNS, consulted while nginx runs.  A literal name in
+    # proxy_pass is resolved once, when a worker starts, and that address is
+    # kept for the life of the worker: recreating a service (every update does)
+    # leaves nginx dialling the container that used to be there, and every
+    # request fails with "connect() failed (111: Connection refused)" until
+    # nginx itself is restarted.  A name held in a variable is resolved through
+    # this resolver instead, so the new address is picked up within valid=.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
     # -----------------------------------------
     # REQUIRE mTLS only for /aidocs
     # -----------------------------------------
@@ -31,7 +40,10 @@ server {
         #proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
         #proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
 
-        proxy_pass http://ai_docs:4000;
+        # $request_uri because nginx drops the query string from a proxy_pass
+        # that carries a variable and no URI of its own.
+        set $aidocs_upstream ai_docs;
+        proxy_pass http://$aidocs_upstream:4000$request_uri;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -46,7 +58,8 @@ server {
     # everything else -> no mTLS required
     # -----------------------------------------
     location / {
-        proxy_pass http://web:5000;
+        set $web_upstream web;
+        proxy_pass http://$web_upstream:5000$request_uri;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
