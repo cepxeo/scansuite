@@ -3,5 +3,6 @@
 .env
 .env.bak-*
 docker-compose.yml.pre-*
+.replaced-*/
 key/*.lic
 key/key.json
