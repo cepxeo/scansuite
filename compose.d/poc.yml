@@ -3,7 +3,9 @@
 # mounted read-only because the container cannot write /key.
 #
 # Enabled by FEATURE_POC_WORKER in the product manifest; the installer adds this
-# file to COMPOSE_FILE in .env.
+# file to COMPOSE_FILE in .env.  Where the product also has a migration job,
+# poc-migrate.yml makes this service wait for it -- it must not start before the
+# schema exists and the installation's secrets have been written.
 
 services:
 
@@ -31,6 +33,12 @@ services:
       PS_DATABASE_USER: ${PS_DATABASE_USER:-scansuite}
       CELERY_HOST: ${CELERY_HOST:-redis}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-your_secure_password}
+      # The installation's own secrets. This container cannot write /key, so it
+      # must never be the one that has to create them: passed here when .env
+      # holds them, read from key/scansuite-secrets.env when it does not.
+      SECRET_KEY: ${SECRET_KEY:-}
+      SCANSUITE_WRAPPING_KEYS: ${SCANSUITE_WRAPPING_KEYS:-}
+      SCANSUITE_ACTIVE_WRAPPING_KEY: ${SCANSUITE_ACTIVE_WRAPPING_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
