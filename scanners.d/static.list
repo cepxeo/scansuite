@@ -1,0 +1,24 @@
+# Static-analysis scanner images pulled by `scansuite install` / `update`.
+# One image per line; a bare name is taken under the product's IMAGE_PREFIX,
+# a name containing "/" or ":" is used verbatim.  Blank lines and # comments
+# are ignored.
+#
+# Adding a scanner here reaches every client through `git pull` -- no rebuild
+# of the installer, no re-push of a binary.
+static
+semgrep-local
+semgrep
+gitleaks
+trufflehog
+noseyparker
+kics
+osv-scanner
+gosec
+spotbugs
+bandit
+phpcs-security-audit
+nodejs-scan
+brakeman
+security-code-scan
+flawfinder
+codeql

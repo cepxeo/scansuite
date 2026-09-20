@@ -1,0 +1,89 @@
+image: 'appsec4u/worker:YOUR_ID_HERE'
+variables:
+  # Specify the engagement ID for the scansuite scans:
+  ENG: 9
+  # Set export_dojo to 'True' to enable exporting results to DefectDojo, or 'False' to disable it:
+  EXPORT_DOJO: 'True'
+  # Specify the programming language for the SAST scans:
+  LANG: java
+  # Specify the docker image to be scanned in the infra_test stage:
+  DOCKER_IMAGE: 'nginx:latest'
+  # Specify the target website for DAST scans:
+  WEBSITE: 'https://ginandjuice.shop'
+  HEADERS: 'null'
+  COOKIES: 'null'
+
+stages:
+  - build
+  - sast
+  - sca
+  - infra_test
+  - dynamic
+  - prod
+before_script:
+  - export DOJO_APIKEY=$DOJO_APIKEY
+  - export DOJO_HOST=$DOJO_HOST
+build:
+  stage: build
+  script:
+    - echo "Building"
+
+# SAST Section
+secrets:
+  stage: build
+  script:
+    - scansuite_sast secrets $ENG $EXPORT_DOJO
+  allow_failure: true
+sast_quick:
+  stage: sast
+  script:
+    - scansuite_sast sast_quick $ENG $EXPORT_DOJO
+  allow_failure: true
+sast_full:
+  stage: sast
+  script:
+    - scansuite_sast sast_full $ENG $EXPORT_DOJO
+  allow_failure: true
+sast_java:
+  stage: sast
+  script:
+    - scansuite_sast $LANG $ENG $EXPORT_DOJO
+  allow_failure: true
+
+
+# SCA/OAST Section
+dep_checks:
+  stage: sca
+  script:
+    - scansuite_sast dep_checks $ENG $EXPORT_DOJO
+  allow_failure: true
+
+# Configs and docker image checks
+iacs_kics:
+  stage: infra_test
+  script:
+    - scansuite_sast iacs_kics $ENG $EXPORT_DOJO
+  allow_failure: true
+image_vulns:
+  stage: infra_test
+  script:
+    - scansuite_infra docker_image_scan $ENG $DOCKER_IMAGE
+  allow_failure: true
+
+# DAST Section
+dast:
+  stage: dynamic
+  script:
+    - scansuite_dast dast_quick $ENG $WEBSITE $HEADERS $COOKIES
+  allow_failure: true
+nuclei:
+  stage: dynamic
+  script:
+    - scansuite_dast nuclei $ENG $WEBSITE $HEADERS $COOKIES
+  allow_failure: true
+
+# End of scans
+production:
+  stage: prod
+  script:
+    - id

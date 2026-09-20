@@ -1,0 +1,6 @@
+product=ScanSuite Teams
+release=4.5
+commit=ef555fe
+built=2026-09-20T17:37:16Z
+images=appsec4u/teams-web, appsec4u/teams-worker, appsec4u/teams-worker-poc
+tag_format=4.5-<licence code>

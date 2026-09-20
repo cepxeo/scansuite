@@ -1,0 +1,8 @@
+# Images the application itself starts besides the release images: they are
+# referenced by docker-compose.yml, so a host that pulls them during install
+# does not download anything on first start.
+nginx:latest
+redis:6-alpine
+postgres:13-alpine
+appsec4u/seaweedfs
+appsec4u/ai_docs

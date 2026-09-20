@@ -1,0 +1,55 @@
+# Deploy-time schema job (migrate.py): creates a fresh database with its team or
+# applies pending Alembic revisions.  Web and the workers start only after it
+# succeeds and refuse to run against a schema they do not match.  A pre-team
+# installation is converted with scripts/scansuite-upgrade-to-teams.sh instead.
+#
+# Enabled by FEATURE_MIGRATE in the product manifest; the installer adds this
+# file to COMPOSE_FILE in .env.  YAML anchors do not cross files, so the /key
+# bootstrap is repeated here.
+
+x-key-bootstrap: &key_bootstrap |-
+  set -e
+  mkdir -p /key
+  if [ -n "$$PYARMOR_LICENSE_B64" ] && [ -n "$$PYARMOR_LICENSE_FILENAME" ] && [ ! -f "/key/$$PYARMOR_LICENSE_FILENAME" ]; then
+    printf %s "$$PYARMOR_LICENSE_B64" | base64 -d > "/key/$$PYARMOR_LICENSE_FILENAME"
+    chmod 0400 "/key/$$PYARMOR_LICENSE_FILENAME"
+  fi
+  if [ -n "$$GCP_KEY_JSON_B64" ] && [ ! -f /key/key.json ]; then
+    printf %s "$$GCP_KEY_JSON_B64" | base64 -d > /key/key.json
+    chmod 0400 /key/key.json
+  fi
+  exec "$$0" "$$@"
+
+services:
+
+  migrate:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    command: ["/bin/sh", "-lc", *key_bootstrap, "python", "migrate.py"]
+    volumes:
+      - ./key:/key
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Compose merges these into the services defined in docker-compose.yml.
+  web:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker_admin:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  celery_beat:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

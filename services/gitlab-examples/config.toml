@@ -1,0 +1,33 @@
+concurrent = 1
+check_interval = 0
+connection_max_age = "15m0s"
+shutdown_timeout = 0
+
+[session_server]
+  session_timeout = 1800
+
+[[runners]]
+  name = "scansuite"
+  url = "https://gitlab.domain.com"
+  id = 2
+  token = "your_token"
+  token_obtained_at = 2024-03-18T18:09:55Z
+  token_expires_at = 0001-01-01T00:00:00Z
+  executor = "docker"
+  builds_dir = "/builds"
+  cache_dir = "/cache"
+  clone_url = "https://gitlab.domain.com/"
+  pre_clone_script = "rm -f .git/index.lock"
+  [runners.cache]
+    MaxUploadedArchiveSize = 0
+  [runners.docker]
+    tls_verify = false
+    image = "appsec4u/worker:YOUR_ID_HERE"
+    privileged = false
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+    volumes = ["/cache:/cache", "/builds:/builds", "/var/run/docker.sock:/var/run/docker.sock", "/etc/docker/daemon.json:/etc/docker/daemon.json:ro"]
+    shm_size = 0
+    helper_image = "gitlab/gitlab-runner-helper:x86_64-latest"
+    network_mtu = 0

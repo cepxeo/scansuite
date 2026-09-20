@@ -1,0 +1,7 @@
+# Per-host state.  The installation is a checkout of this repository, so
+# anything the host generates must stay untracked or `git pull` would fight it.
+.env
+.env.bak-*
+docker-compose.yml.pre-*
+key/*.lic
+key/key.json

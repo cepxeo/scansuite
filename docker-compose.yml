@@ -1,0 +1,157 @@
+# ScanSuite on a single production host.
+#
+# Unlike the development docker-compose.yml at the repository root, nothing of
+# the application is mounted from the host: web and the workers run the
+# pyarmor-protected code built into the release images (update-scansuite.sh).
+# The host provides only:
+#
+#   .env                    settings, secrets and SCANSUITE_TAG
+#   key/                    the licence file (<name>_<code>.lic), and key.json if used
+#   services/nginx/         default.conf.template and certs/ (cert.pem, key.pem)
+#   services/ai_docs/       the AI documentation site (Jekyll source, not application code)
+#
+# THIS FILE IS NEVER EDITED ON THE HOST.  The release is selected by
+# SCANSUITE_TAG in .env, which `scansuite install` and `scansuite update` write,
+# so `git pull` always applies cleanly.  Optional services live in compose.d/
+# and are switched on through COMPOSE_FILE in .env.
+
+# Shared /key bootstrap. Decodes the base64 licence and service-account key into
+# /key at container start, skipping either that is already present (the ./key
+# bind mount provides them, so this is a no-op here). $$ escapes compose
+# interpolation so the shell sees a literal $.
+x-key-bootstrap: &key_bootstrap |-
+  set -e
+  mkdir -p /key
+  if [ -n "$$PYARMOR_LICENSE_B64" ] && [ -n "$$PYARMOR_LICENSE_FILENAME" ] && [ ! -f "/key/$$PYARMOR_LICENSE_FILENAME" ]; then
+    printf %s "$$PYARMOR_LICENSE_B64" | base64 -d > "/key/$$PYARMOR_LICENSE_FILENAME"
+    chmod 0400 "/key/$$PYARMOR_LICENSE_FILENAME"
+  fi
+  if [ -n "$$GCP_KEY_JSON_B64" ] && [ ! -f /key/key.json ]; then
+    printf %s "$$GCP_KEY_JSON_B64" | base64 -d > /key/key.json
+    chmod 0400 /key/key.json
+  fi
+  exec "$$0" "$$@"
+
+services:
+
+  nginx:
+    image: nginx
+    volumes:
+      - ./services/nginx:/etc/nginx/templates
+      - ./services/nginx/certs:/etc/nginx/certs
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+    ports:
+      - "443:443"
+      - "80:80"
+    links:
+      - web
+      - ai_docs
+    depends_on:
+      - web
+      - ai_docs
+
+  web:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WEB:-web}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    command: ["/bin/sh", "-lc", *key_bootstrap, "python", "app.py"]
+    volumes:
+      - /var/tmp:/var/tmp
+      - ./key:/key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  redis:
+    image: redis:6-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  worker:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    command: ["/bin/sh", "-lc", *key_bootstrap, "python", "work.py"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/tmp:/var/tmp
+      - ./key:/key
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker_admin:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    command: ["/bin/sh", "-lc", *key_bootstrap, "python", "work_admin.py"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/tmp:/var/tmp
+      - ./key:/key
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    command: ["/bin/sh", "-lc", *key_bootstrap, "/app/run_beat"]
+    volumes:
+      - ./key:/key
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:13-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+      POSTGRES_DB: ${PS_DATABASE_NAME}
+      POSTGRES_USER: ${PS_MIGRATION_USER:-${PS_DATABASE_USER}}
+      POSTGRES_PASSWORD: ${PS_MIGRATION_PASSWORD:-${PS_DATABASE_PASSWORD}}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  seaweedfs:
+    image: appsec4u/seaweedfs
+    command: ["server", "-s3", "-dir=/tmp", "-volume.fileSizeLimitMB 5000", "-volume.minFreeSpace 5GiB"]
+    volumes:
+      - seaweedfs_data:/tmp
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+
+  ai_docs:
+    image: appsec4u/ai_docs
+    command: bundle exec jekyll s --host=0.0.0.0
+    volumes:
+      - ./services/ai_docs:/website
+      - /var/tmp/scansuite/ai_docs:/website/docs
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:
+  seaweedfs_data:

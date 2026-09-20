@@ -1,0 +1,4 @@
+#!/bin/sh
+# Compatibility shim: the installer is now a subcommand of ./scansuite.
+# Documented since 4.5 as: ./scansuite install <code>
+exec "$(dirname "$0")/scansuite" install "$@"

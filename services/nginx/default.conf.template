@@ -1,0 +1,62 @@
+server {
+    listen 443 ssl;
+    client_max_body_size 2000M;
+    proxy_read_timeout 600;
+    proxy_connect_timeout 600;
+    proxy_send_timeout 600;
+
+    ssl_certificate /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+
+    # Enable these when a client CA bundle is mounted at
+    # /etc/nginx/certs/ca.crt and /aidocs mTLS enforcement is required.
+    # ssl_client_certificate /etc/nginx/certs/ca.crt;
+    # ssl_verify_client optional;
+    # ssl_verify_depth 2;
+
+    server_tokens off;
+    server_name web;
+
+    # -----------------------------------------
+    # REQUIRE mTLS only for /aidocs
+    # -----------------------------------------
+    location /aidocs/ {
+
+        # deny if no valid client certificate
+        #if ($ssl_client_verify != SUCCESS) {
+        #    return 403;
+        #}
+
+        # optional: pass identity to backend
+        #proxy_set_header X-SSL-Client-Verify $ssl_client_verify;
+        #proxy_set_header X-SSL-Client-DN $ssl_client_s_dn;
+
+        proxy_pass http://ai_docs:4000;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /aidocs {
+        return 301 /aidocs/;
+    }
+
+    # -----------------------------------------
+    # everything else -> no mTLS required
+    # -----------------------------------------
+    location / {
+        proxy_pass http://web:5000;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80 default_server;
+    server_name _;
+    server_tokens off;
+    return 301 https://$host$request_uri;
+}

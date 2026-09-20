@@ -1,0 +1,3 @@
+#!/bin/sh
+# Compatibility shim: ./scansuite reset db
+exec "$(dirname "$0")/../scansuite" reset db "$@"
