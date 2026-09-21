@@ -10,7 +10,9 @@
 set -uo pipefail
 
 REPO="https://github.com/cepxeo/scansuite"
+# An absolute path, or one relative to the home directory (the product decides).
 APP_DIR="/opt/scansuite"
+case "$APP_DIR" in /*) ;; *) APP_DIR="$HOME/$APP_DIR" ;; esac
 
 if ! ls ./*.lic >/dev/null 2>&1; then
     echo "No licence file (*.lic) in this folder. Copy the one sent with your"
@@ -27,9 +29,8 @@ for file in ./*.lic; do
     fi
     lic_path=$(realpath "$file")
 
-    # The installation lives under /opt, which only root can write to. Create
-    # the directory once and hand it to whoever runs the installation, so every
-    # later command works without sudo.
+    # Under /opt only root can write. Create the directory once and hand it to
+    # whoever runs the installation, so every later command works without sudo.
     if [ ! -d "$APP_DIR" ]; then
         if ! mkdir -p "$APP_DIR" 2>/dev/null; then
             echo "[*] Creating $APP_DIR (needs sudo)"

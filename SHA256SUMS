@@ -2,7 +2,7 @@ b0cdfe11a9827b7f53cc0c93616f6687a322e2fe7a447d1a2288f69aed16d606 *./.env.example
 b896b3d03647293c3b48ff75aca5aaea647f50d56c575a31d3c6c94c0ba791a9 *./.gitattributes
 a78ebfa333a24fe52ebf50ff82ea01940e8524d465b7a60de3b5867c7cd7ac73 *./.gitignore
 43085b073e6898bff26593407e7dd23248a41abda2aad61db9588e399ab7c21f *./README.md
-35260de405ab12538daaccab6fda2e8a573c20c343563c334ea984aa68ff92e4 *./RELEASE
+86bef4b88ed1643ce921a7e22cf6c95ef3ea186b5d5521fb718c9c4eb5527ebd *./RELEASE
 aed77b0646ee487d53054935d56d857de61b60c1704c9046aff2d38f8ac62bc2 *./compose.d/migrate.yml
 4677b0ba4f824946d7fa680711682be75324a674e7aec9cc4f565068d4b4ca6a *./compose.d/poc-migrate.yml
 de7ea7a4dfda4ec2adf2d8f64c6be8e54b23071c28be21ef14e75f2963ddb183 *./compose.d/poc.yml
@@ -15,7 +15,7 @@ bac4d47e684e54898ad47de2b415c669b9b91b2b3d46e524fc0b467ba3740496 *./scanners.d/d
 5767422d7d80f8c8275e348c00192762eb2ba33acefc3dc63f2cc38051d6a094 *./scanners.d/dynamic.list
 ef31fba1c6b4176a4b36539ca1184414cfb95721f5a0141a824f60659e813513 *./scanners.d/infra.list
 8b0f95e9963ee1038315333a6f68f8e955ea3c9c500a811b0a10e1dbb81b5ce4 *./scanners.d/static.list
-3d8c80647b8c5c06f4a8f406000bfd3dfcf0922e3766295e616e28957dbb6497 *./scansuite
+874f6163ed55b85568125e3535db7904eb8485b858b8186bfbfa04474350aa3d *./scansuite
 28b4cdf9efdd13d84e0f255c17ff935b78fd28c124632f6be719b47b0a9eac93 *./services/ai_docs/.gitignore
 6e4c2c947e9d48243abc4207c99606f41c9531a106c0db4b06bce12f9cca77c6 *./services/ai_docs/404.html
 6a8d1eb21fc2820ab5256cb2f9df0effadb75f8408fc2108c01822f9334f20d7 *./services/ai_docs/Gemfile
@@ -30,4 +30,4 @@ dbd148caa7f71da16bb4dc044412c00cebc75271e6d9be5830daf236791f1ec2 *./services/ai_
 5baf2cd1b19f5b7f651fcac9eb93a0b65fb2f4c96de32c12f87b079d0d6aec3b *./services/nginx/certs/key.pem
 75bd51da77c329f94f87f63dd159fb155d0b354fac85e858854d7c05cb508014 *./services/nginx/default.conf.template
 86d79334ff52dd1c9b64f1d3e4e277646fb786fb54ef306e06b4d01d4482c0c1 *./services/nginx/scan-dojo.example
-39082cf31ca42f498f5515c79b85d927433833cd7291f7aee5eaae779f13c702 *./services/scansuite.sh
+20536c5056ec6ee6e1a7ef7d0330e1b7f56b9d0a772da54b290dcc49e5dd5261 *./services/scansuite.sh
