@@ -30,3 +30,22 @@ cp <name>_<code>.lic key/
 ./scansuite uninstall           # stop and remove the boot service
 ```
 
+### Upgrading
+
+```bash
+./scansuite update
+```
+
+That fetches this repository, pulls the images for your licence and restarts
+only the services that changed. Your `.env` and `key/` are never touched.
+
+### What is on this host
+
+| Path | |
+|---|---|
+| `.env` | settings and secrets, generated on the first install — keep it |
+| `key/` | your licence file |
+| `docker-compose.yml` | the services. Never edited by hand: the release is `SCANSUITE_TAG` in `.env` |
+| `services/nginx/certs/` | the TLS certificate nginx serves — replace with your own |
+| `scanners.d/` | the scanner images this release pulls |
+| `RELEASE` | which release this is, and what it was built from |
