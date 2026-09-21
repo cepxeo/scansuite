@@ -33,6 +33,9 @@ services:
       PS_DATABASE_USER: ${PS_DATABASE_USER:-scansuite}
       CELERY_HOST: ${CELERY_HOST:-redis}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-your_secure_password}
+      # The same clock as the other workers: Celery compares their timestamps
+      # and warns of drift when one of them runs in UTC.
+      TZ: ${TZ:-Europe/Moscow}
       # The installation's own secrets. This container cannot write /key, so it
       # must never be the one that has to create them: passed here when .env
       # holds them, read from key/scansuite-secrets.env when it does not.
