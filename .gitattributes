@@ -1,7 +1,7 @@
 # The installation is checked out on Linux hosts, but the release is often
 # built on Windows.  Without this, a checkout there turns every script into
 # CRLF and the next build commits it back -- and /bin/sh on the client fails
-# with "\r: not found" on the first line of every shim.
+# with "\r: not found" on the first line of every script.
 * text=auto eol=lf
 
 # The compiled manager: never converted, never diffed as text.

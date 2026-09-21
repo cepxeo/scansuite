@@ -1,3 +1,0 @@
-#!/bin/sh
-# Compatibility shim: ./scansuite start [workers]
-exec "$(dirname "$0")/scansuite" start "$@"

@@ -1,3 +1,0 @@
-#!/bin/sh
-# Compatibility shim: ./scansuite reset dojo
-exec "$(dirname "$0")/../scansuite" reset dojo "$@"

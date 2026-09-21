@@ -1,7 +1,6 @@
 # Deploy-time schema job (migrate.py): creates a fresh database with its team or
 # applies pending Alembic revisions.  Web and the workers start only after it
-# succeeds and refuse to run against a schema they do not match.  A pre-team
-# installation is converted with scripts/scansuite-upgrade-to-teams.sh instead.
+# succeeds and refuse to run against a schema they do not match.
 #
 # Enabled by FEATURE_MIGRATE in the product manifest; the installer adds this
 # file to COMPOSE_FILE in .env.  YAML anchors do not cross files, so the /key
