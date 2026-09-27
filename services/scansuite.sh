@@ -20,6 +20,25 @@ if ! ls ./*.lic >/dev/null 2>&1; then
     exit 1
 fi
 
+# The installation is a git checkout, and a fresh server often has no git.
+# ./scansuite installs Docker itself, but only after the clone.
+if ! command -v git >/dev/null 2>&1; then
+    echo "[*] Installing git"
+    SUDO=""
+    [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+    if command -v apt-get >/dev/null 2>&1; then
+        $SUDO apt-get update -y >/dev/null && $SUDO apt-get install -y git >/dev/null
+    elif command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y git >/dev/null
+    elif command -v yum >/dev/null 2>&1; then
+        $SUDO yum install -y git >/dev/null
+    fi
+    command -v git >/dev/null 2>&1 || {
+        echo "Could not install git. Install it and run this again."
+        exit 1
+    }
+fi
+
 for file in ./*.lic; do
     code=$(basename "$file" | sed 's/.*_\(.*\)\.lic$/\1/')
     if [ "${#code}" -ne 6 ]; then
@@ -55,12 +74,15 @@ for file in ./*.lic; do
         git clone "$REPO" "$APP_DIR" || exit 1
     fi
 
+    # A copy: the file the customer was sent stays where it is.
     mkdir -p "$APP_DIR/key"
-    cp "$lic_path" "$APP_DIR/key/"
+    if [ ! "$lic_path" -ef "$APP_DIR/key/$(basename "$lic_path")" ]; then
+        cp "$lic_path" "$APP_DIR/key/" || { echo "Could not copy the licence to $APP_DIR/key."; exit 1; }
+    fi
+    echo "[+] Licence $(basename "$lic_path") copied to $APP_DIR/key"
 
     cd "$APP_DIR" || exit 1
     if ./scansuite install "$code"; then
-        rm -f "$lic_path"
         echo ""
         echo "Manage the installation from $APP_DIR:"
         echo "  ./scansuite status          what is running"
