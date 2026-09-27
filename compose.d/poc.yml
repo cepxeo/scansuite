@@ -11,6 +11,13 @@ services:
 
   worker_poc:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_POC:-worker-poc}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    # The same cap as the services in docker-compose.yml (anchors do not
+    # reach across compose files).
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     command: python /app/work_poc.py
     read_only: true
     cap_drop:
@@ -28,11 +35,11 @@ services:
     environment:
       PS_DATABASE_HOST: ${PS_DATABASE_HOST:-postgres}
       PS_DATABASE_NAME: ${PS_DATABASE_NAME:-scansuite}
-      PS_DATABASE_PASSWORD: ${PS_DATABASE_PASSWORD:-secure_password}
+      PS_DATABASE_PASSWORD: ${PS_DATABASE_PASSWORD:-}
       PS_DATABASE_PORT: ${PS_DATABASE_PORT:-5432}
       PS_DATABASE_USER: ${PS_DATABASE_USER:-scansuite}
       CELERY_HOST: ${CELERY_HOST:-redis}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-your_secure_password}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       # The same clock as the other workers: Celery compares their timestamps
       # and warns of drift when one of them runs in UTC.
       TZ: ${TZ:-Europe/Moscow}

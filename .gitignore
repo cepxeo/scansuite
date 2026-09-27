@@ -6,3 +6,5 @@ docker-compose.yml.pre-*
 .replaced-*/
 key/*.lic
 key/key.json
+key/scansuite-secrets.env
+docker-compose.local.yml

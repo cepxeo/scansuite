@@ -32,10 +32,19 @@ x-key-bootstrap: &key_bootstrap |-
   fi
   exec "$$0" "$$@"
 
+# Container logs are kept by Docker on the host's disk and never shrink on
+# their own: cap each service at 3 x 20 MB.
+x-logging: &default_logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
 
   nginx:
     image: nginx
+    logging: *default_logging
     volumes:
       - ./services/nginx:/etc/nginx/templates
       - ./services/nginx/certs:/etc/nginx/certs
@@ -53,6 +62,7 @@ services:
 
   web:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WEB:-web}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    logging: *default_logging
     command: ["/bin/sh", "-lc", *key_bootstrap, "python", "app.py"]
     volumes:
       - /var/tmp:/var/tmp
@@ -67,18 +77,29 @@ services:
 
   redis:
     image: redis:6-alpine
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    logging: *default_logging
+    # Redis holds only what can be rebuilt - the Celery queue, rate-limit
+    # counters and AI provider slots - so a failed snapshot (full disk, or no
+    # memory to fork for it) must not make it refuse writes: with the default
+    # stop-writes-on-bgsave-error every scan dispatch and every rate-limited
+    # request failed with MISCONF until someone restarted it.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--stop-writes-on-bgsave-error", "no"]
+    volumes:
+      - redis_data:/data
     environment:
       TZ: ${TZ:-Europe/Moscow}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      # A write, not PING: a Redis that answers but refuses writes is not
+      # healthy, and PING alone kept reporting it as such.
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning SET scansuite:healthcheck ok EX 60 | grep OK"]
       interval: 5s
       timeout: 5s
       retries: 30
 
   worker:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    logging: *default_logging
     command: ["/bin/sh", "-lc", *key_bootstrap, "python", "work.py"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -94,6 +115,7 @@ services:
 
   worker_admin:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    logging: *default_logging
     command: ["/bin/sh", "-lc", *key_bootstrap, "python", "work_admin.py"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -109,6 +131,7 @@ services:
 
   celery_beat:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    logging: *default_logging
     command: ["/bin/sh", "-lc", *key_bootstrap, "/app/run_beat"]
     volumes:
       - ./key:/key
@@ -122,6 +145,7 @@ services:
 
   postgres:
     image: postgres:13-alpine
+    logging: *default_logging
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
@@ -137,6 +161,7 @@ services:
 
   seaweedfs:
     image: appsec4u/seaweedfs
+    logging: *default_logging
     command: ["server", "-s3", "-dir=/tmp", "-volume.fileSizeLimitMB 5000", "-volume.minFreeSpace 5GiB"]
     volumes:
       - seaweedfs_data:/tmp
@@ -145,6 +170,7 @@ services:
 
   ai_docs:
     image: appsec4u/ai_docs
+    logging: *default_logging
     command: bundle exec jekyll s --host=0.0.0.0
     volumes:
       - ./services/ai_docs:/website
@@ -153,5 +179,6 @@ services:
       - .env
 
 volumes:
+  redis_data:
   postgres_data:
   seaweedfs_data:
