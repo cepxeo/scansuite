@@ -8,7 +8,6 @@
 #   .env                    settings, secrets and SCANSUITE_TAG
 #   key/                    the licence file (<name>_<code>.lic), and key.json if used
 #   services/nginx/         default.conf.template and certs/ (cert.pem, key.pem)
-#   services/ai_docs/       the AI documentation site (Jekyll source, not application code)
 #
 # THIS FILE IS NEVER EDITED ON THE HOST.  The release is selected by
 # SCANSUITE_TAG in .env, which `scansuite install` and `scansuite update` write,
@@ -55,10 +54,8 @@ services:
       - "80:80"
     links:
       - web
-      - ai_docs
     depends_on:
       - web
-      - ai_docs
 
   web:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WEB:-web}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
@@ -167,16 +164,6 @@ services:
       - seaweedfs_data:/tmp
     environment:
       TZ: ${TZ:-Europe/Moscow}
-
-  ai_docs:
-    image: appsec4u/ai_docs
-    logging: *default_logging
-    command: bundle exec jekyll s --host=0.0.0.0
-    volumes:
-      - ./services/ai_docs:/website
-      - /var/tmp/scansuite/ai_docs:/website/docs
-    env_file:
-      - .env
 
 volumes:
   redis_data:

@@ -5,4 +5,3 @@ nginx:latest
 redis:6-alpine
 postgres:13-alpine
 appsec4u/seaweedfs
-appsec4u/ai_docs
