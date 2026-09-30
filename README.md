@@ -14,6 +14,13 @@ cp <name>_<code>.lic key/
 ./scansuite install <code>
 ```
 
+### Deploying on Microsoft Azure instead
+
+`azure/` deploys ScanSuite Teams into your own Azure subscription on Azure
+Container Apps, with managed PostgreSQL, storage and Key Vault and no server to
+look after. It covers static analysis. See [azure/README.md](azure/README.md)
+for how to deploy it, use it and tear it down.
+
 ### Choosing what is installed
 
 By default the application and DefectDojo are installed, without external

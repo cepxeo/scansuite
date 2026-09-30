@@ -1,0 +1,22 @@
+# Remote state in Azure Storage, with Entra ID auth and no shared keys.
+# Copy to backend.tf (git-ignored) before a second operator or a pipeline
+# joins; `terraform init -migrate-state` moves local state across.
+#
+# The state holds generated passwords and the licence: keep the account in a
+# separate resource group, restrict it to the operators, turn on versioning.
+#
+#   az group create -n rg-scansuite-tfstate -l germanywestcentral
+#   az storage account create -n <name> -g rg-scansuite-tfstate --sku Standard_ZRS \
+#     --allow-shared-key-access false --min-tls-version TLS1_2
+#   az storage container create -n tfstate --account-name <name> --auth-mode login
+#   az role assignment create --assignee <operator> --role "Storage Blob Data Owner" --scope <account id>
+
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-scansuite-tfstate"
+    storage_account_name = "<name>"
+    container_name       = "tfstate"
+    key                  = "scansuite-dev.tfstate"
+    use_azuread_auth     = true
+  }
+}

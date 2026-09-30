@@ -43,9 +43,12 @@ services:
       # The same clock as the other workers: Celery compares their timestamps
       # and warns of drift when one of them runs in UTC.
       TZ: ${TZ:-Europe/Moscow}
-      # The installation's own secrets. This container cannot write /key, so it
-      # must never be the one that has to create them: passed here when .env
-      # holds them, read from key/scansuite-secrets.env when it does not.
+      # The installation's own secrets. Only images built before work_poc.py
+      # stopped calling ensure_secrets() need them (it refused to start
+      # without); newer images ignore them. This bundle serves every client,
+      # so they stay until no client runs an older image - then remove these
+      # three lines: the PoC worker runs model-written code and should not
+      # hold the keys that decrypt team credentials.
       SECRET_KEY: ${SECRET_KEY:-}
       SCANSUITE_WRAPPING_KEYS: ${SCANSUITE_WRAPPING_KEYS:-}
       SCANSUITE_ACTIVE_WRAPPING_KEY: ${SCANSUITE_ACTIVE_WRAPPING_KEY:-}

@@ -1,0 +1,59 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Every other setting has a
+# default; variables.tf describes them all.
+
+# The subscription to deploy into: az account list -o table
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# The region. Some subscription offers (Visual Studio ones, for example) cannot
+# create PostgreSQL Flexible Server in germanywestcentral or westeurope;
+# swedencentral, northeurope and francecentral work. deploy.sh checks before it
+# builds anything.
+location = "germanywestcentral"
+
+# Created by this configuration; it must not exist yet. Everything ScanSuite
+# uses lives in it, so deleting the deployment is deleting this group.
+resource_group_name = "rg-scansuite"
+
+# dev: single-zone database, no purge protection, a clean teardown.
+# prod: zone-redundant database and storage, Key Vault purge protection, a
+# dedicated profile for the scans. See "Production" in README.md.
+environment = "dev"
+
+# Who may reach the web UI, as CIDR ranges: your office, VPN or home address
+# (curl -s https://ifconfig.me). Empty = the whole internet. Set it: a new
+# installation's setup page belongs to whoever opens it first.
+web_allowed_cidrs = ["203.0.113.10/32"]
+
+# The code of your licence: key/<name>_<code>.lic -> "<code>". The images are
+# tagged with it, and the licence opens only the images of its own code.
+image_tag = "000000"
+
+# Where the licence is. The default is ../key, the bundle's key/ folder.
+# key_dir              = "/path/to/folder"
+# pyarmor_license_file = "<name>_<code>.lic"   # only when key_dir holds several
+
+# false builds the platform only (network, database, vault, registry,
+# environment), which needs neither the licence nor the images.
+deploy_workloads = true
+
+# Containers' time zone; scheduled scans run in it.
+timezone = "Europe/Berlin"
+
+# 1 keeps the UI warm. 0 saves money when nobody uses it; the first request
+# then waits about a minute for a cold start.
+web_min_replicas = 1
+
+# B_Standard_B1ms suits a small team; B_Standard_B2s or GP_Standard_D2ds_v5
+# for more users and parallel scans.
+postgres_sku = "B_Standard_B1ms"
+
+# Where alerts go (error bursts, failed scans, database CPU). Empty = none.
+alert_email = ""
+
+# Static outbound address, for allowlists at your git hosts and AI endpoint
+# (about 35 USD a month, plus traffic).
+# enable_nat_gateway = true
+
+# Only for older images whose PoC worker (scansuite-worker-poc) will not start
+# without the installation secrets: its log then names SECRET_KEY.
+# worker_poc_installation_secrets = true

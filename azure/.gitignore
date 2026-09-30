@@ -1,0 +1,11 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+terraform.tfvars
+*.auto.tfvars
+backend.tf
+modules/storage/.build/
+
+# Written by deploy.sh: the digests of the images it pushed.
+images.auto.tfvars.json
