@@ -9,3 +9,6 @@ modules/storage/.build/
 
 # Written by deploy.sh: the digests of the images it pushed.
 images.auto.tfvars.json
+# ...and of the images the migration last ran for (deploy.sh skips it while
+# they are unchanged).
+images.migrated.json

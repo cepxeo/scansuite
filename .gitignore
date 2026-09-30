@@ -14,5 +14,6 @@ azure/terraform.tfvars
 azure/*.tfstate
 azure/*.tfstate.*
 azure/images.auto.tfvars.json
+azure/images.migrated.json
 azure/backend.tf
 azure/crash.log

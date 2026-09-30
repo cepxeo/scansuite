@@ -10,10 +10,12 @@
 #      the deployment's registry, server side (az acr import).
 #   3. Workloads: web, workers, the scan and migrate jobs.
 #   4. The migrate job, judged by its execution status. Console logs can reach
-#      Log Analytics ten minutes late, so they are never the signal.
+#      Log Analytics ten minutes late, so they are never the signal. Only when
+#      the images changed: migrating cancels the scans in flight.
 #
 # Idempotent: re-running it is the normal way to apply a change or a new
-# image tag. Extra arguments go to both terraform apply calls.
+# image tag. Extra arguments go to both terraform apply calls. MIGRATE=1 runs
+# the migration even when the images are the ones last migrated.
 #
 # Docker Hub credentials for the import, when the repositories are private:
 #   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN  (environment only; never in state)
@@ -152,6 +154,16 @@ log "Phase 3/3 - workloads"
 terraform apply -input=false -auto-approve "$@"
 
 MIGRATE_JOB="$(terraform output -raw migrate_job_name)"
+# The migration also cancels every scan still in flight, which is right for a
+# new release but wrong for a settings change: scan executions keep running
+# through an apply that leaves the images alone. So migrate only when the
+# images differ from the last ones migrated here (MIGRATE=1 forces it).
+if [[ "${MIGRATE:-}" != "1" && -f images.migrated.json ]] && cmp -s images.auto.tfvars.json images.migrated.json; then
+  log "Images unchanged since their last migration: skipping it, so scans in flight keep running"
+  log "Done"
+  terraform output
+  exit 0
+fi
 log "Running migrations (${MIGRATE_JOB})"
 EXECUTION="$(az containerapp job start -g "${RG}" -n "${MIGRATE_JOB}" --query name -o tsv)"
 echo "  execution ${EXECUTION}"
@@ -166,6 +178,7 @@ for _ in $(seq 1 180); do
   sleep 10
 done
 [[ "${status}" == "Succeeded" ]] || die "migration ${EXECUTION} still ${status:-unknown} after 30 minutes"
+cp images.auto.tfvars.json images.migrated.json
 
 log "Done"
 terraform output

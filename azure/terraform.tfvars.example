@@ -20,8 +20,9 @@ resource_group_name = "rg-scansuite"
 environment = "dev"
 
 # Who may reach the web UI, as CIDR ranges: your office, VPN or home address
-# (curl -s https://ifconfig.me). Empty = the whole internet. Set it: a new
-# installation's setup page belongs to whoever opens it first.
+# (curl -4 -s https://ifconfig.me: IPv4, which is how the UI is reached).
+# Empty = the whole internet. Set it: a new installation's setup page
+# belongs to whoever opens it first.
 web_allowed_cidrs = ["203.0.113.10/32"]
 
 # The code of your licence: key/<name>_<code>.lic -> "<code>". The images are

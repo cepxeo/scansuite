@@ -65,10 +65,12 @@ Contributor alone is not enough.
 - the **registry user name and access token**, used to copy the ScanSuite
   images into your subscription.
 
-**Your public IP address or ranges**, the ones allowed to open the web UI:
+**Your public IPv4 address or ranges**, the ones allowed to open the web UI.
+The web UI is reached over IPv4, so ask for the IPv4 address explicitly; many
+connections would otherwise report an IPv6 one:
 
 ```bash
-curl -s https://ifconfig.me
+curl -4 -s https://ifconfig.me
 ```
 
 ---
@@ -127,6 +129,11 @@ export DOCKERHUB_USERNAME='<registry user name>'
 ```bash
 export DOCKERHUB_TOKEN='<registry access token>'
 ```
+
+If Docker on this machine already holds the images for your licence code (for
+example from a server installation), `deploy.sh` pushes those local copies
+instead of copying from the registry. Remove them first if they may be out of
+date.
 
 **Run the deployment:**
 
@@ -205,7 +212,8 @@ continues from its last saved stage, not from the beginning.
 ## 5. Day-to-day operation
 
 **Change a setting.** Edit `terraform.tfvars` and re-run `./deploy.sh`.
-Re-running is always safe: Terraform changes only what differs.
+Re-running is always safe: Terraform changes only what differs, and while the
+images stay the same, scans that are running carry on.
 
 **Update to a new release.** When you receive new images, and with them a new
 licence:
@@ -216,9 +224,10 @@ licence:
 4. Run `./deploy.sh`.
 
 The apps move to the new images and the database migration runs. Your data
-stays. If you are told that the images for your current code were rebuilt, just
-re-run `./deploy.sh`: it always deploys the image it has just copied, even under
-an unchanged tag.
+stays, but the migration cancels any scan still running, so update when no
+scan is in progress. If you are told that the images for your current code
+were rebuilt, just re-run `./deploy.sh`: it always deploys the image it has
+just copied, even under an unchanged tag, and treats it as a new release.
 
 **Your address changed and the UI no longer opens.** Update
 `web_allowed_cidrs` and re-run `./deploy.sh`.
@@ -348,6 +357,19 @@ Expect several hundred USD a month more than `dev`.
 <region>`.** Some subscription types, Visual Studio subscriptions among them,
 are barred from PostgreSQL in some regions. Pick another `location`, such as
 `swedencentral`, `northeurope` or `francecentral`, and run again.
+
+**`ManagedEnvironmentCapacityHeavyUsageError` / `AKS is experiencing heavy
+usage in region <region>`.** Azure has no room for a new Container Apps
+environment in that region at the moment. Azure keeps the half-made
+environment in a `Failed` state, and Terraform does not know about it, so delete
+it before trying again:
+
+```bash
+az containerapp env delete -g <resource group> -n scansuite-env --yes
+```
+
+Then run `./deploy.sh` again later. If the region stays full, run
+`./destroy.sh`, set another `location` and deploy again.
 
 **`no licence for image tag <code>`.** Put your `.lic` file in `../key/` and
 make sure `image_tag` matches its code. If the folder holds several licences,
