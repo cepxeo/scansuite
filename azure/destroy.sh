@@ -10,8 +10,17 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+if [[ -z "$(terraform state list 2>/dev/null)" ]]; then
+  echo "No Terraform state here - nothing to destroy." >&2
+  exit 1
+fi
+# A destroy that stopped part-way has already dropped the outputs from the
+# state, so fall back to the configured name: re-running must finish the job.
 RG="$(terraform output -raw resource_group 2>/dev/null || true)"
-[[ -n "${RG}" ]] || { echo "No Terraform state here - nothing to destroy." >&2; exit 1; }
+if [[ -z "${RG}" ]]; then
+  RG="$(terraform console -input=false <<<'var.resource_group_name' 2>/dev/null | tr -d '"\r' || true)"
+fi
+[[ -n "${RG}" ]] || { echo "Could not tell which resource group this state belongs to." >&2; exit 1; }
 
 if [[ "${1:-}" != "-y" ]]; then
   read -r -p "Destroy everything in ${RG}, including the database? Type the resource group name: " answer

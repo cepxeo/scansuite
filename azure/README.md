@@ -303,8 +303,9 @@ az group show -n <resource group>
 ```
 
 If `destroy.sh` stops with `polling support for the Content-Type "" was not
-implemented`, Azure has already deleted the environment and Terraform tripped
-over the last status check. Run `./destroy.sh` again to remove the rest.
+implemented`, Azure has already deleted the app, job or environment the message
+names, and Terraform tripped over the last status check. Run `./destroy.sh`
+again to remove the rest; it can take two or three runs.
 
 **What stays behind:**
 
