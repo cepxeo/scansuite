@@ -194,8 +194,12 @@ scans run side by side without slowing the UI. The user guide is at
 https://scansuite.gitbook.io/.
 
 **Scan from CI.** Create a token on the team's settings page, in the
-**Automation and API tokens** card. `../services/gitlab-examples/` has
-ready-made GitLab CI jobs.
+**Automation and API tokens** card, and run the pipeline client `scansuite-ci`
+(the `appsec4u/scansuite-ci:1` image, or `/ci/scansuite-ci.py` from your
+installation). It starts SAST, DAST and infrastructure scans, waits for them and
+fails the build on what they find. For GitLab, include the template your
+installation publishes at `/ci/scansuite.gitlab-ci.yml`. The user guide's CI/CD
+chapter has the details.
 
 **Private git servers and AI endpoints.** Outbound traffic leaves from the
 environment's address, which can change. If your git server or AI endpoint
