@@ -190,8 +190,9 @@ Next:
      the first account - administrator of its team and of the installation -
      is created. Whoever reaches the page first gets that account, so do it
      straight away (web_allowed_cidrs limits who can reach it).
-  2. Configure the AI provider under Settings: an Azure OpenAI /v1 endpoint
-     through the OpenAI provider, or any other supported provider.
+  2. Configure the AI provider on the System AI card under System Settings ->
+     Shared services: an Azure OpenAI /v1 endpoint through the OpenAI
+     provider, or any other supported provider.
   3. This deployment runs static analysis only: Container Apps has no Docker
      daemon for the dynamic and infrastructure scanners.
 EOF

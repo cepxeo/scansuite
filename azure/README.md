@@ -173,9 +173,9 @@ terraform output
 2. **Sign in** with that account. The setup page is gone for good once the
    first account exists.
 3. **Configure an AI provider**, which the AI code analysis needs:
-   - For every team: **System Settings → System AI**.
-   - For one team only: **Teams** in the sidebar opens the team's settings;
-     use the **AI provider** card there.
+   - For every team: the **System AI** card under **System Settings →
+     Shared services**.
+   - For one team only: **Teams → AI → AI provider**.
 
    For **Azure OpenAI**, choose the OpenAI provider and set the API endpoint to
    your resource's v1 address, `https://<resource>.openai.azure.com/openai/v1`,
