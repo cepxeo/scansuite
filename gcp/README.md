@@ -131,7 +131,9 @@ export TF_VAR_dockerhub_token='<registry access token>'
 ./deploy.sh
 ```
 
-A first run takes **20 to 30 minutes**, most of it Cloud SQL. The script:
+A first run takes **about 15 minutes** with the trial sizes of example A and
+**20 to 30 minutes** with the production defaults, most of it Cloud SQL. The
+script:
 
 1. Checks your sign-in, the project and its billing, and the licence, before
    creating anything.
@@ -311,9 +313,9 @@ cloudsql_name = "scansuite-pg-2"
 2. **Sign in** with that account. The setup page is gone for good once the
    first account exists.
 3. **Configure an AI provider**, which the AI code analysis needs:
-   - For every team: **System Settings → System AI**.
-   - For one team only: **Teams** in the sidebar opens the team's settings;
-     use the **AI provider** card there.
+   - For every team: the **System AI** card under **System Settings →
+     Shared services**.
+   - For one team only: **Teams → AI → AI provider**.
 
    - **Vertex AI** needs no key: the installation's own service account
      (`scansuite-app`) already has the Vertex AI User role. Choose Vertex AI,
@@ -510,8 +512,11 @@ become available. Run `./deploy.sh` again.
 
 **The page does not load.** Check that your current address is in
 `web_allowed_cidrs`. On a first deploy the load balancer can take 5 to 10
-minutes to start answering, and a managed certificate (with `domain_name`)
-stays in provisioning until the name resolves to the `load_balancer_ip` output.
+minutes to start answering. In those minutes some requests fail and others work,
+or return a plain `404` page from Google, even for the sign-in page: the new
+address is still reaching all of Google's front ends. It settles by itself; wait
+and reload. A managed certificate (with `domain_name`) stays in provisioning
+until the name resolves to the `load_balancer_ip` output.
 
 **The URL opens the sign-in page, not the setup page.** Someone has already
 created the first account. If that was not you, run `./destroy.sh` and deploy

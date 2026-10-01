@@ -189,9 +189,10 @@ Next:
   1. Open the url above now. A new installation shows the setup page, where
      the first account - administrator of its team and of the installation -
      is created. Whoever reaches the page first gets that account.
-  2. Configure the AI provider under System Settings -> System AI (Vertex AI in
-     this project, or any OpenAI-compatible endpoint). With no scanner
-     containers, the model does the analysis, so this is not optional.
+  2. Configure the AI provider on the System AI card under System Settings ->
+     Shared services (Vertex AI in this project, or any OpenAI-compatible
+     endpoint). With no scanner containers, the model does the analysis, so
+     this is not optional.
   3. Without a domain_name the certificate is self-signed, so your browser will
      warn once. Set domain_name and re-run for a Google-managed certificate.
   4. This deployment runs static analysis only: there is no Docker daemon for
