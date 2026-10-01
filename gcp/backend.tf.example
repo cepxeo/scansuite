@@ -1,0 +1,25 @@
+###############################################################################
+# Remote state.
+#
+# State is local by default so the first deployment needs no prior setup. Move
+# it to Cloud Storage before anyone else touches this configuration - the state
+# contains the database password, the Redis AUTH string, the Flask secret key
+# and the service-account key, and local state has no locking.
+#
+#   gcloud storage buckets create gs://tf-state-MY-ORG \
+#     --location=europe-west3 --uniform-bucket-level-access
+#   gcloud storage buckets update gs://tf-state-MY-ORG --versioning
+#
+# Then rename this file to backend.tf, fill in the bucket, and run:
+#
+#   terraform init -migrate-state
+#
+# GCS backends lock natively - there is no separate lock table to create.
+###############################################################################
+
+terraform {
+  backend "gcs" {
+    bucket = "tf-state-MY-ORG"
+    prefix = "scansuite/prod"
+  }
+}

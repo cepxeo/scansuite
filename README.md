@@ -21,6 +21,13 @@ Container Apps, with managed PostgreSQL, storage and Key Vault and no server to
 look after. It covers static analysis. See [azure/README.md](azure/README.md)
 for how to deploy it, use it and tear it down.
 
+### Deploying on Google Cloud instead
+
+`gcp/` deploys ScanSuite Teams into your own Google Cloud project on Cloud Run,
+with Cloud SQL, Memorystore, Cloud Storage and Secret Manager and no server to
+look after. It covers static analysis. See [gcp/README.md](gcp/README.md) for
+how to deploy it, use it and tear it down.
+
 ### Choosing what is installed
 
 By default the application and DefectDojo are installed, without external

@@ -17,3 +17,13 @@ azure/images.auto.tfvars.json
 azure/images.migrated.json
 azure/backend.tf
 azure/crash.log
+# A deployment to Google Cloud from gcp/: its settings, state and provider cache.
+gcp/.terraform/
+gcp/terraform.tfvars
+gcp/*.tfstate
+gcp/*.tfstate.*
+gcp/images.auto.tfvars.json
+gcp/images.migrated.json
+gcp/images.current.json
+gcp/backend.tf
+gcp/crash.log
