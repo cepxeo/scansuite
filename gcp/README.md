@@ -343,8 +343,12 @@ Uploads through the browser are limited to **32 MiB** on Cloud Run. Scan larger
 code from its git repository instead.
 
 **Scan from CI.** Create a token on the team's settings page, in the
-**Automation and API tokens** card. `../services/gitlab-examples/` has
-ready-made GitLab CI jobs.
+**Automation and API tokens** card, and run the pipeline client `scansuite-ci`
+(the `appsec4u/scansuite-ci:1` image, or `/ci/scansuite-ci.py` from your
+installation). It starts SAST, DAST and infrastructure scans, waits for them and
+fails the build on what they find. For GitLab, include the template your
+installation publishes at `/ci/scansuite.gitlab-ci.yml`. The user guide's CI/CD
+chapter has the details.
 
 **Private git servers and AI endpoints.** Scans leave from fixed addresses, the
 `scan_egress_ips` output. Allow those where your git server or AI endpoint
