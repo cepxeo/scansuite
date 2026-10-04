@@ -131,9 +131,60 @@ variable "master_cidr" {
 }
 
 variable "nat_ip_count" {
-  description = "Reserved static egress IPs. These are the addresses scans originate from, so customers allowlist them - keep them stable."
+  description = "Reserved static egress IPs (egress_mode = \"nat\"). These are the addresses scans originate from, so customers allowlist them - keep them stable."
   type        = number
   default     = 2
+}
+
+variable "egress_mode" {
+  description = <<-EOT
+    How the workloads reach anything outside the VPC. "none" is for
+    platform = "cloudrun" only.
+      "nat"  - Cloud NAT on nat_ip_count reserved external addresses (default).
+      "none" - no external address anywhere: no NAT and no default internet
+               route. Google APIs (Vertex AI, Cloud Storage, the Cloud Run API)
+               go through Private Google Access on google_apis_vip, with
+               private DNS zones for googleapis.com and run.app. Everything
+               else - internal Git hosts - must be reachable over the corporate
+               connection attached to this VPC, its names resolved through
+               dns_forwarding_zones.
+  EOT
+  type        = string
+  default     = "nat"
+
+  validation {
+    condition     = contains(["nat", "none"], var.egress_mode)
+    error_message = "egress_mode is \"nat\" or \"none\"."
+  }
+}
+
+variable "google_apis_vip" {
+  description = "With egress_mode = \"none\": the Private Google Access range. \"private\" (199.36.153.8/30) serves every Google API; \"restricted\" (199.36.153.4/30) only those VPC Service Controls supports - use it when the project is inside a perimeter."
+  type        = string
+  default     = "private"
+
+  validation {
+    condition     = contains(["private", "restricted"], var.google_apis_vip)
+    error_message = "google_apis_vip is \"private\" or \"restricted\"."
+  }
+}
+
+variable "psa_cidr" {
+  description = "Range reserved for Cloud SQL and Memorystore (private services access), at least a /24; a /16 leaves room for more instances. Take it from the corporate address plan when the VPC is connected to the corporate network."
+  type        = string
+  default     = "10.30.0.0/16"
+}
+
+variable "dns_forwarding_zones" {
+  description = "Internal domains the workloads must resolve (Git hosts, for example), each forwarded to the corporate DNS servers over the corporate connection: { \"corp.example.\" = [\"10.0.0.53\", \"10.0.1.53\"] }."
+  type        = map(list(string))
+  default     = {}
+}
+
+variable "dns_inbound_forwarding" {
+  description = "Create inbound DNS forwarders in the subnet. The corporate DNS servers forward run.app to them, so internal browsers resolve the web UI's Cloud Run URL to the Google APIs range (egress_mode = \"none\")."
+  type        = bool
+  default     = false
 }
 
 ###############################################################################
@@ -247,6 +298,37 @@ variable "image_digests" {
   description = "teams-web / teams-worker / teams-worker-poc -> sha256 digest. deploy.sh writes these (images.auto.tfvars.json) so a rebuild under the same tag still rolls every workload to the new image; without a digest the tag is used."
   type        = map(string)
   default     = {}
+}
+
+variable "source_registry" {
+  description = <<-EOT
+    (platform = "cloudrun" only.) A registry to copy the images from, up to the
+    image name - for example an
+    internal Quay organisation, "quay.example.internal/scansuite". Cloud Run
+    cannot pull from a private registry outside Google Cloud, so deploy.sh
+    signs in with SOURCE_REGISTRY_USERNAME and SOURCE_REGISTRY_TOKEN (taken from
+    the environment, never stored), copies <name>:<image_tag> of each image
+    into the project's own Artifact Registry repository and deploys that copy
+    by digest. Empty reads the images from Docker Hub through the remote
+    repository instead, which is then not created.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "source_image_names" {
+  description = "Image names in source_registry, when they differ from the canonical ones (teams-web, teams-worker, teams-worker-poc). The copies keep the canonical names."
+  type        = map(string)
+  default = {
+    teams-web        = "teams-web"
+    teams-worker     = "teams-worker"
+    teams-worker-poc = "teams-worker-poc"
+  }
+
+  validation {
+    condition     = alltrue([for name in ["teams-web", "teams-worker", "teams-worker-poc"] : contains(keys(var.source_image_names), name)])
+    error_message = "source_image_names needs an entry for each of teams-web, teams-worker and teams-worker-poc."
+  }
 }
 
 variable "image_web" {

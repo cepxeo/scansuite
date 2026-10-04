@@ -87,7 +87,7 @@ locals {
 
   key_dir = var.key_dir != "" ? var.key_dir : "${path.root}/../key"
 
-  # Auto-detect the operator's public IP so a first apply from a laptop can
+  # Auto-detect the operator's public IP (GKE only) so a first apply from a laptop can
   # reach the control plane without anyone editing a variable file. Built as a
   # comprehension over a count-0-or-1 data source rather than an indexed
   # conditional: both branches of a conditional get evaluated, and [0] against
@@ -96,8 +96,10 @@ locals {
   detected_cidrs = var.master_authorized_cidrs != null ? var.master_authorized_cidrs : local.operator_cidrs
 }
 
+# GKE only: Cloud Run has no control plane to allowlist, and an installation
+# without internet access cannot make this call.
 data "http" "operator_ip" {
-  count = var.master_authorized_cidrs == null ? 1 : 0
+  count = local.use_gke && var.master_authorized_cidrs == null ? 1 : 0
   url   = "https://checkip.amazonaws.com"
 }
 
@@ -124,6 +126,13 @@ module "network" {
   pods_cidr     = var.pods_cidr
   services_cidr = var.services_cidr
   nat_ip_count  = var.nat_ip_count
+  psa_cidr      = var.psa_cidr
+  gke           = local.use_gke
+
+  egress_mode            = var.egress_mode
+  google_apis_vip        = var.google_apis_vip
+  dns_forwarding_zones   = var.dns_forwarding_zones
+  dns_inbound_forwarding = var.dns_inbound_forwarding
 
   depends_on = [module.project_services]
 }
@@ -330,6 +339,9 @@ module "artifact_registry" {
     ] : [],
   )
 
+  # No remote repository when the images are copied from source_registry: it
+  # would only point at Docker Hub.
+  dockerhub_remote               = var.source_registry == ""
   dockerhub_username             = var.dockerhub_username
   dockerhub_token_secret_version = lookup(module.registry_secrets.version_names, "dockerhub-token", "")
 
@@ -396,10 +408,12 @@ moved {
 }
 
 # The three images. By default they are read through the remote repository in
-# front of Docker Hub, pinned to the digests deploy.sh resolved for image_tag;
-# image_* overrides (an internal registry) are used verbatim.
+# front of Docker Hub; with source_registry, from the copies deploy.sh made in
+# the project's own repository. Either way pinned to the digests deploy.sh
+# resolved for image_tag. image_* overrides are used verbatim.
 locals {
   image_repository = (var.image_repository != "" ? var.image_repository :
+    var.source_registry != "" ? module.artifact_registry.repository_url :
   "${module.artifact_registry.remote_repository_url}/${var.image_source}")
 
   derived_images = {
@@ -419,6 +433,17 @@ resource "terraform_data" "licence_required" {
     precondition {
       condition     = local.licence_b64 != ""
       error_message = "No licence to deploy with: put exactly one <name>_<code>.lic in ${local.key_dir}, or name the one to use in pyarmor_license_file. The images do not start without it."
+    }
+  }
+}
+
+# The internal installation (no internet route, images copied from an internal
+# registry) is built and tested for Cloud Run only.
+resource "terraform_data" "internal_installation_on_cloud_run" {
+  lifecycle {
+    precondition {
+      condition     = local.use_cloudrun || (var.egress_mode == "nat" && var.source_registry == "")
+      error_message = "egress_mode = \"none\" and source_registry are supported on platform = \"cloudrun\" only."
     }
   }
 }

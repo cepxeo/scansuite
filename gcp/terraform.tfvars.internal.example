@@ -1,0 +1,114 @@
+###############################################################################
+# An internal installation: no external address, reachable only from inside
+# the VPC and the corporate network connected to it, images copied from an
+# internal registry. Copy to terraform.tfvars and fill in the <...> values.
+# The walkthrough is docs/gcp-internal-runbook.md.
+###############################################################################
+
+project_id = "<project id>"
+
+platform     = "cloudrun"
+region       = "europe-west3"
+zones        = ["europe-west3-a", "europe-west3-b", "europe-west3-c"]
+primary_zone = "europe-west3-b"
+environment  = "prod"
+
+deletion_protection = true
+
+###############################################################################
+# No external exposure
+#
+# internal_only: the web service accepts internal traffic only and no load
+# balancer is created. Users open its Cloud Run URL (terraform output url),
+# which the corporate DNS resolves to the Google APIs range below.
+###############################################################################
+
+internal_only = true
+
+###############################################################################
+# Network: a new VPC with no way to the internet
+#
+# The address ranges come from the corporate address plan, since the platform
+# team connects this VPC to the corporate network (VPN, Interconnect or Network
+# Connectivity Center) and the ranges must not overlap anything there.
+###############################################################################
+
+egress_mode = "none"
+
+# "restricted" inside a VPC Service Controls perimeter, "private" otherwise.
+google_apis_vip = "restricted"
+
+subnet_cidr = "<a /24 or larger, e.g. 10.120.0.0/24>"
+psa_cidr    = "<a /24 or larger for Cloud SQL and Memorystore, e.g. 10.120.16.0/20>"
+
+# Internal names the scans resolve - the Git hosts at least - forwarded to the
+# corporate DNS servers over the corporate connection.
+dns_forwarding_zones = {
+  "<corp.example.>" = ["<10.0.0.53>", "<10.0.1.53>"]
+}
+
+# Addresses in the subnet the corporate DNS servers forward run.app to.
+dns_inbound_forwarding = true
+
+###############################################################################
+# Images, copied from the internal registry
+#
+# deploy.sh signs in to source_registry with the robot account and token from
+# the environment, copies <name>:<image_tag> of each image into this project's
+# Artifact Registry and deploys the copies by digest:
+#
+#   export SOURCE_REGISTRY_USERNAME='<robot account>'
+#   export SOURCE_REGISTRY_TOKEN='<robot token>'
+#
+# image_tag is the licence code: key/<name>_<code>.lic -> "<code>".
+###############################################################################
+
+image_tag       = "<code>"
+source_registry = "<quay.example.internal/organisation>"
+
+# Only if the registry names the images differently:
+# source_image_names = {
+#   teams-web        = "web"
+#   teams-worker     = "worker"
+#   teams-worker-poc = "worker-poc"
+# }
+
+###############################################################################
+# Scope: AI static analysis only (no Docker daemon on Cloud Run)
+###############################################################################
+
+enable_static_scans  = "True"
+enable_dynamic_scans = "False"
+
+###############################################################################
+# AI provider
+#
+# Without internet access the model is either Vertex AI, reached through
+# Private Google Access, or an OpenAI-compatible endpoint inside the corporate
+# network. Both are configured after the first sign-in (System Settings ->
+# Shared services -> System AI). For Vertex, switch on "Use the deployment's own
+# identity, no key": the Cloud Run service account, which already holds the
+# Vertex AI User role in this project, then calls it - no service-account key.
+# Only for a key of another service account, which this grants the Vertex and
+# bucket roles in this project:
+# llm_service_account_email = "<sa>@<project>.iam.gserviceaccount.com"
+###############################################################################
+
+###############################################################################
+# Sizing
+###############################################################################
+
+scan_cpu                  = "4"
+scan_memory               = "16Gi"
+scan_task_timeout_seconds = 172800
+web_min_instances         = 1
+web_max_instances         = 4
+admin_instances           = 1
+
+cloudsql_tier   = "db-custom-2-8192"
+cloudsql_ha     = true
+redis_memory_gb = 4
+redis_ha        = true
+
+alert_email = "<secops@example.com>"
+timezone    = "Europe/Berlin"

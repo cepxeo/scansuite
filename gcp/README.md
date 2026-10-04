@@ -225,25 +225,50 @@ Before anyone else runs the deployment, move the Terraform state to a Cloud
 Storage bucket (`backend.tf.example`).
 
 **C. No access from the internet.** For a corporate network that reaches the
-project's VPC over VPN or Interconnect. There is no load balancer, and the UI is
-served on its Cloud Run address to callers inside the network only:
+project's VPC over VPN or Interconnect. There is no load balancer and no
+external address, the UI is served on its Cloud Run address to callers inside
+the network only, and the images are copied from your internal registry:
 
 ```hcl
 project_id  = "acme-scansuite"
 region      = "europe-west3"
 
-image_tag          = "a1b2c3"
-dockerhub_username = "<registry user name>"
+internal_only   = true
+egress_mode     = "none"
+google_apis_vip = "restricted"  # "private" outside a VPC Service Controls perimeter
 
-internal_only = true
-timezone      = "Europe/Berlin"
-alert_email   = "secops@acme.example"
+subnet_cidr            = "10.120.0.0/24"   # from your address plan
+psa_cidr               = "10.120.16.0/20"
+dns_forwarding_zones   = { "acme.example." = ["10.0.0.53", "10.0.1.53"] }
+dns_inbound_forwarding = true
+
+image_tag       = "a1b2c3"
+source_registry = "quay.acme.example/scansuite"
+
+timezone    = "Europe/Berlin"
+alert_email = "secops@acme.example"
 ```
 
-`web_allowed_cidrs` and `domain_name` are not used here. The `url` output is
-the `https://...run.app` address. Your network has to resolve and route it
-through Private Google Access; your network team sets that up once. The uptime
-alert is left out, because Google's probers cannot reach an internal address.
+`deploy.sh` signs in to `source_registry` with the robot account and token you
+export, copies the three images at `image_tag` into the project's Artifact
+Registry, signs out again and deploys the copies:
+
+```bash
+export SOURCE_REGISTRY_USERNAME='<robot account>'
+export SOURCE_REGISTRY_TOKEN='<robot token>'
+```
+
+Nothing in the VPC reaches the internet: Google APIs (Vertex AI, Cloud Storage)
+go through Private Google Access, and internal names (your Git hosts) are
+resolved by your DNS servers through `dns_forwarding_zones`. After the deploy,
+your network team routes the subnet and the `google_apis_range` output to the
+VPC and forwards the `run.app` zone to the inbound forwarders
+(`dns_inbound_forwarders_command`), so browsers resolve the `url` output to it.
+`terraform.tfvars.internal.example` is this example with every setting
+explained, and `scripts/bundle-providers.sh` packs the Terraform providers for
+a deploy host that cannot reach the Terraform registry. `web_allowed_cidrs` and
+`domain_name` are not used here, and the uptime alert is left out, because
+Google's probers cannot reach an internal address.
 
 **D. Another region.** Set the region and its zones together; the zones place
 Redis and the database's standby:
@@ -318,10 +343,11 @@ cloudsql_name = "scansuite-pg-2"
    - For one team only: **Teams → AI → AI provider**.
 
    - **Vertex AI** needs no key: the installation's own service account
-     (`scansuite-app`) already has the Vertex AI User role. Choose Vertex AI,
-     enter your project ID, a region where the model is offered (such as
-     `europe-west1`, or `global`) and the Claude model ID, and leave the
-     credentials empty. Enable the Claude model for your project in **Vertex
+     (`scansuite-app`) already has the Vertex AI User role. On the System AI
+     card choose Vertex AI, enter your project ID, a region where the model is
+     offered (such as `europe-west1`, or `global`) and the Claude model ID, and
+     switch on **Use the deployment's own identity, no key**. (A team's own
+     Vertex provider always takes a service account key.) Enable the Claude model for your project in **Vertex
      AI → Model Garden** first.
    - **Any OpenAI-compatible endpoint** works too, Azure OpenAI included:
      choose the OpenAI provider, set the endpoint and its API key. Scans reach

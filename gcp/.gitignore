@@ -12,3 +12,7 @@ modules/storage/.build/
 images.auto.tfvars.json
 images.migrated.json
 images.current.json
+
+# scripts/bundle-providers.sh output
+terraform-providers/
+terraform-providers.tar.gz

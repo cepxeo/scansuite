@@ -12,8 +12,18 @@ output "load_balancer_ip" {
 }
 
 output "scan_egress_ips" {
-  description = "Static Cloud NAT addresses the workers egress from - repository clones and Vertex AI calls. Give these to anyone who allowlists by source IP."
+  description = "Static Cloud NAT addresses the workers egress from - repository clones and AI calls. Give these to anyone who allowlists by source IP. Empty with egress_mode = \"none\": the workers then reach internal hosts from the subnet range."
   value       = module.network.nat_ip_addresses
+}
+
+output "google_apis_range" {
+  description = "With egress_mode = \"none\": the Private Google Access range googleapis.com and run.app resolve to inside the VPC. Route it from the corporate network to this VPC for internal browsers to reach the web UI."
+  value       = module.network.google_apis_range
+}
+
+output "dns_inbound_forwarders_command" {
+  description = "Lists the inbound DNS forwarder addresses the corporate DNS servers forward run.app to (dns_inbound_forwarding = true)."
+  value       = var.dns_inbound_forwarding ? "gcloud compute addresses list --project ${var.project_id} --filter=purpose=DNS_RESOLVER --format=\"table(address,subnetwork)\"" : ""
 }
 
 output "platform" {

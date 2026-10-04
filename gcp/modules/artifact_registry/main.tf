@@ -4,7 +4,9 @@
 #   <prefix>            a standard repository: images pushed from a local build
 #                       (deploy.sh with LOCAL_IMAGES=1, or scripts/mirror-images.sh).
 #   <prefix>-dockerhub  a remote repository in front of Docker Hub, the default
-#                       source. Cloud Run cannot pull private Docker Hub images
+#                       source (not created when dockerhub_remote is false:
+#                       deploy.sh then copies the images from source_registry
+#                       into <prefix>). Cloud Run cannot pull private Docker Hub images
 #                       itself, so every workload reads the appsec4u images
 #                       through this repository, which authenticates to Docker
 #                       Hub with the token in Secret Manager.
@@ -19,6 +21,12 @@ variable "prefix" { type = string }
 variable "labels" { type = map(string) }
 variable "reader_members" { type = list(string) }
 
+variable "dockerhub_remote" {
+  description = "Create the remote repository in front of Docker Hub."
+  type        = bool
+  default     = true
+}
+
 variable "dockerhub_username" {
   type    = string
   default = ""
@@ -32,10 +40,10 @@ variable "dockerhub_token_secret_version" {
 
 locals {
   authenticated = var.dockerhub_username != "" && var.dockerhub_token_secret_version != ""
-  repositories = {
-    local  = google_artifact_registry_repository.this.name
-    remote = google_artifact_registry_repository.dockerhub.name
-  }
+  repositories = merge(
+    { local = google_artifact_registry_repository.this.name },
+    var.dockerhub_remote ? { remote = "${var.prefix}-dockerhub" } : {},
+  )
 }
 
 resource "google_artifact_registry_repository" "this" {
@@ -52,6 +60,8 @@ resource "google_artifact_registry_repository" "this" {
 }
 
 resource "google_artifact_registry_repository" "dockerhub" {
+  count = var.dockerhub_remote ? 1 : 0
+
   project       = var.project_id
   location      = var.region
   repository_id = "${var.prefix}-dockerhub"
@@ -79,6 +89,11 @@ resource "google_artifact_registry_repository" "dockerhub" {
   }
 }
 
+moved {
+  from = google_artifact_registry_repository.dockerhub
+  to   = google_artifact_registry_repository.dockerhub[0]
+}
+
 resource "google_artifact_registry_repository_iam_member" "readers" {
   for_each = {
     for pair in setproduct(keys(local.repositories), var.reader_members) :
@@ -90,6 +105,8 @@ resource "google_artifact_registry_repository_iam_member" "readers" {
   repository = each.value.repository
   role       = "roles/artifactregistry.reader"
   member     = each.value.member
+
+  depends_on = [google_artifact_registry_repository.this, google_artifact_registry_repository.dockerhub]
 }
 
 output "repository_url" {
@@ -99,5 +116,5 @@ output "repository_url" {
 
 output "remote_repository_url" {
   description = "The remote repository in front of Docker Hub."
-  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.dockerhub.repository_id}"
+  value       = var.dockerhub_remote ? "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.dockerhub[0].repository_id}" : ""
 }

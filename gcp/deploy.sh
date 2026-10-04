@@ -8,7 +8,9 @@
 #      repositories are created first, then each image's digest is resolved
 #      for image_tag through the remote repository in front of Docker Hub - or,
 #      with LOCAL_IMAGES=1, the images in the local Docker engine are pushed to
-#      the project's own repository. The digests go to images.auto.tfvars.json,
+#      the project's own repository. With source_registry set (an internal
+#      registry), they are copied from there into that repository first, signed
+#      in with SOURCE_REGISTRY_USERNAME and SOURCE_REGISTRY_TOKEN. The digests go to images.auto.tfvars.json,
 #      so a rebuild under the same tag still rolls every workload.
 #   3. Cloud Run: the migrate job and what it needs are applied first, the job
 #      runs when the images differ from the ones last migrated (MIGRATE=1
@@ -57,6 +59,8 @@ PLATFORM="$(tf_var var.platform)"
 PLATFORM="${PLATFORM:-cloudrun}"
 TAG="$(tf_var var.image_tag)"
 OVERRIDES="$(tf_var 'var.image_web != "" && var.image_worker != "" && var.image_worker_poc != ""')"
+SOURCE="$(tf_var var.source_registry)"
+INTERNAL="$(tf_var var.internal_only)"
 [[ -n "${PROJECT}" ]] || die "could not read project_id"
 
 gcloud projects describe "${PROJECT}" --format='value(projectId)' >/dev/null 2>&1 \
@@ -82,6 +86,13 @@ LICENCE="$(tf_var local.pyarmor_licence 2>/dev/null || true)"
 if [[ -z "${LICENCE}" || "${LICENCE}" == "null" || ! -f "${KEY_DIR}/${LICENCE}" ]]; then
   die "no licence in ${KEY_DIR}/: put your <name>_<code>.lic there (exactly one *.lic, or set pyarmor_license_file)."
 fi
+if [[ "${OVERRIDES}" != "true" && -n "${SOURCE}" ]]; then
+  [[ "${LOCAL_IMAGES:-}" != "1" ]] || die "LOCAL_IMAGES=1 and source_registry both name where the images come from; use one"
+  [[ -n "${SOURCE_REGISTRY_USERNAME:-}" && -n "${SOURCE_REGISTRY_TOKEN:-}" ]] ||
+    die "source_registry is ${SOURCE}: export SOURCE_REGISTRY_USERNAME and SOURCE_REGISTRY_TOKEN (its robot account and token) to copy the images"
+  command -v skopeo >/dev/null 2>&1 || command -v docker >/dev/null 2>&1 ||
+    die "copying the images from ${SOURCE} needs skopeo or docker"
+fi
 if [[ "${OVERRIDES}" != "true" ]]; then
   [[ -n "${TAG}" ]] || die "image_tag is empty: set it to your licence code, the <code> of ${LICENCE%.lic}"
   [[ "${LICENCE}" == *"_${TAG}.lic" ]] ||
@@ -101,6 +112,45 @@ resolve_digest() { # resolve_digest <repository up to the image name> <image> <t
     "https://${host}/v2/${path}/$2/manifests/$3" 2>/dev/null |
     tr -d '\r' | awk 'tolower($1) == "docker-content-digest:" {print $2}')"
   [[ "${digest}" == sha256:* ]] && printf '%s' "${digest}"
+}
+
+# Copy the three images from source_registry (an internal Quay, for example)
+# into the project's own repository: Cloud Run cannot pull from a private
+# registry outside Google Cloud. skopeo copies registry to registry; without
+# it, docker pulls and pushes. The source credentials come from the
+# environment and are signed out again afterwards, so no token stays behind on
+# a shared host.
+copy_from_source() { # copy_from_source <destination repository>
+  local destination="$1" source_host="${SOURCE%%/*}" destination_host="${1%%/*}" image name
+  if command -v skopeo >/dev/null 2>&1; then
+    printf '%s' "${SOURCE_REGISTRY_TOKEN}" |
+      skopeo login --username "${SOURCE_REGISTRY_USERNAME}" --password-stdin "${source_host}" >/dev/null ||
+      die "could not sign in to ${source_host} as ${SOURCE_REGISTRY_USERNAME}"
+    gcloud auth print-access-token |
+      skopeo login --username oauth2accesstoken --password-stdin "${destination_host}" >/dev/null ||
+      die "could not sign in to ${destination_host}"
+    for image in "${IMAGE_NAMES[@]}"; do
+      name="$(tf_var "var.source_image_names[\"${image}\"]")"
+      skopeo copy --all "docker://${SOURCE}/${name}:${TAG}" "docker://${destination}/${image}:${TAG}" >/dev/null ||
+        { skopeo logout "${source_host}" >/dev/null 2>&1; die "could not copy ${SOURCE}/${name}:${TAG}"; }
+      echo "  ${SOURCE}/${name}:${TAG} -> ${image}:${TAG}"
+    done
+    skopeo logout "${source_host}" >/dev/null 2>&1 || true
+  else
+    printf '%s' "${SOURCE_REGISTRY_TOKEN}" |
+      docker login --username "${SOURCE_REGISTRY_USERNAME}" --password-stdin "${source_host}" >/dev/null ||
+      die "could not sign in to ${source_host} as ${SOURCE_REGISTRY_USERNAME}"
+    gcloud auth configure-docker "${destination_host}" --quiet >/dev/null 2>&1
+    for image in "${IMAGE_NAMES[@]}"; do
+      name="$(tf_var "var.source_image_names[\"${image}\"]")"
+      { docker pull -q "${SOURCE}/${name}:${TAG}" >/dev/null &&
+        docker tag "${SOURCE}/${name}:${TAG}" "${destination}/${image}:${TAG}" &&
+        docker push -q "${destination}/${image}:${TAG}" >/dev/null; } ||
+        { docker logout "${source_host}" >/dev/null 2>&1; die "could not copy ${SOURCE}/${name}:${TAG}"; }
+      echo "  ${SOURCE}/${name}:${TAG} -> ${image}:${TAG}"
+    done
+    docker logout "${source_host}" >/dev/null 2>&1 || true
+  fi
 }
 
 if [[ "${OVERRIDES}" == "true" ]]; then
@@ -127,6 +177,10 @@ else
       docker push -q "${repository}/${image}:${TAG}" >/dev/null
       echo "  ${image}:${TAG} pushed"
     done
+  elif [[ -n "${SOURCE}" ]]; then
+    repository="$(terraform output -raw local_image_repository)"
+    log "Copying ${IMAGE_NAMES[*]} :${TAG} from ${SOURCE} to ${repository}"
+    copy_from_source "${repository}"
   else
     log "Resolving ${IMAGE_NAMES[*]} :${TAG} through ${repository}"
   fi
@@ -134,12 +188,12 @@ else
   digests=()
   for image in "${IMAGE_NAMES[@]}"; do
     digest="$(resolve_digest "${repository}" "${image}" "${TAG}" || true)"
-    [[ -n "${digest}" ]] || die "could not find ${image}:${TAG} in ${repository}. Check image_tag, and that dockerhub_username/dockerhub_token are the ones sent with your licence."
+    [[ -n "${digest}" ]] || die "could not find ${image}:${TAG} in ${repository}. Check image_tag, and that $([[ -n "${SOURCE}" ]] && echo "the copy from ${SOURCE} succeeded" || echo "dockerhub_username/dockerhub_token are the ones sent with your licence")."
     digests+=("\"${image}\": \"${digest}\"")
     echo "  ${image} ${digest}"
   done
   local_repository=""
-  [[ "${LOCAL_IMAGES:-}" == "1" ]] && local_repository="${repository}"
+  [[ "${LOCAL_IMAGES:-}" == "1" || -n "${SOURCE}" ]] && local_repository="${repository}"
   printf '{\n  "image_repository": "%s",\n  "image_digests": {%s}\n}\n' \
     "${local_repository}" "$(IFS=,; echo "${digests[*]}")" > images.auto.tfvars.json
 fi
@@ -182,7 +236,16 @@ fi
 log "Done"
 terraform output
 
-cat <<'EOF'
+if [[ "${INTERNAL}" == "true" ]]; then
+  third="  3. The url is the web service's Cloud Run address, served only to callers
+     inside the VPC and the networks connected to it. See google_apis_range and
+     dns_inbound_forwarders_command above for what the corporate network needs."
+else
+  third="  3. Without a domain_name the certificate is self-signed, so your browser will
+     warn once. Set domain_name and re-run for a Google-managed certificate."
+fi
+
+cat <<EOF
 
 Next:
 
@@ -193,8 +256,7 @@ Next:
      Shared services (Vertex AI in this project, or any OpenAI-compatible
      endpoint). With no scanner containers, the model does the analysis, so
      this is not optional.
-  3. Without a domain_name the certificate is self-signed, so your browser will
-     warn once. Set domain_name and re-run for a Google-managed certificate.
+${third}
   4. This deployment runs static analysis only: there is no Docker daemon for
      the dynamic and infrastructure scanners.
 
