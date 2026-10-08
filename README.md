@@ -73,6 +73,19 @@ only the services that changed. Your settings in `.env` and your files in
 `key/` are kept; placeholder passwords left in `.env` are replaced with
 generated ones, and the database is given the new one.
 
+What you changed in the configuration the release ships — `docker-compose.yml`,
+`compose.d/`, `services/nginx/` (the certificate too) and `defectdojo/` — is
+kept as well: the update merges your change into the new release's file, so
+your lines and the release's new ones are both there, and says
+`Kept this host's changes to: …`. Two cases it cannot merge, and says so:
+the release changed the very lines you changed, or the services no longer load
+with your change. The release's file is then put in place and yours is saved
+in a `.replaced-<date>` directory next to it, with the change alone as
+`<file>.patch`; apply it again by hand, or move it to
+`docker-compose.local.yml`, which no release ever touches. Any other release
+file that differs on the host (the `scansuite` command, the scanner lists) is
+replaced, with a copy in the same directory.
+
 An installation made before 21 September 2026 runs `./scansuite update` twice:
 its first run fetches the new `scansuite` command, the second applies the
 release with it (the last line then names the licence code alone, not
@@ -91,8 +104,8 @@ sudo cp key/scansuite-secrets.env <backup location>
 |---|---|
 | `.env` | settings and secrets, generated on the first install — keep it |
 | `key/` | your licence file, and `scansuite-secrets.env` (owned by root): the keys that decrypt the credentials stored in the database. It is made on the first start; back it up with the database, which is unreadable in part without it |
-| `docker-compose.yml` | the services. Never edited by hand: the release is `SCANSUITE_TAG` in `.env` |
-| `docker-compose.local.yml` | optional, yours: what this host changes, e.g. `web: ports: ["127.0.0.1:5000:5000"]` behind its own reverse proxy. Updates never touch it and every start includes it |
-| `services/nginx/certs/` | the TLS certificate nginx serves — replace with your own |
+| `docker-compose.yml` | the services. The release is `SCANSUITE_TAG` in `.env`, not a line here. A change you make is merged into each new release (see Upgrading) |
+| `docker-compose.local.yml` | optional, yours: what this host changes, e.g. `web: ports: ["127.0.0.1:5000:5000"]` behind its own reverse proxy. Updates never touch it and every start includes it — the surest place for a change that must survive any release |
+| `services/nginx/certs/` | the TLS certificate nginx serves — replace with your own; updates keep it |
 | `scanners.d/` | the scanner images this release pulls |
 | `RELEASE` | which release this is, and what it was built from |
