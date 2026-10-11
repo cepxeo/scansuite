@@ -4,6 +4,8 @@
 .env.bak-*
 docker-compose.yml.pre-*
 .replaced-*/
+# What `scansuite backup` writes when it is given no other place.
+backups/
 key/*.lic
 key/key.json
 key/scansuite-secrets.env
