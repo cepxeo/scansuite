@@ -75,6 +75,11 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      # nginx is the one proxy in front of the application, and the client is the
+      # address it forwards. Unset, every visitor counted as nginx itself and
+      # shared one rate limit: a scanner on the sign-in page locked everyone out.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
 
   redis:
     image: redis:6-alpine
