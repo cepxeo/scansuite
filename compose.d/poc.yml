@@ -18,6 +18,8 @@ services:
       options:
         max-size: "20m"
         max-file: "3"
+    # As the workers in docker-compose.yml: a crashed one comes back on its own.
+    restart: unless-stopped
     command: python /app/work_poc.py
     read_only: true
     cap_drop:

@@ -60,6 +60,10 @@ services:
   web:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WEB:-web}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
     logging: *default_logging
+    # A crashed container comes back on its own: a worker that exited with 139
+    # stayed down until someone ran ./scansuite start. An explicit stop still
+    # stops it. On web, the workers and beat only - never on a one-shot job.
+    restart: unless-stopped
     command: ["/bin/sh", "-lc", *key_bootstrap, "python", "app.py"]
     volumes:
       - /var/tmp:/var/tmp
@@ -97,6 +101,7 @@ services:
   worker:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
     logging: *default_logging
+    restart: unless-stopped
     command: ["/bin/sh", "-lc", *key_bootstrap, "python", "work.py"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -113,6 +118,7 @@ services:
   worker_admin:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
     logging: *default_logging
+    restart: unless-stopped
     command: ["/bin/sh", "-lc", *key_bootstrap, "python", "work_admin.py"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -129,6 +135,7 @@ services:
   celery_beat:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
     logging: *default_logging
+    restart: unless-stopped
     command: ["/bin/sh", "-lc", *key_bootstrap, "/app/run_beat"]
     volumes:
       - ./key:/key
