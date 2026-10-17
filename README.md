@@ -88,6 +88,14 @@ in a `.replaced-<date>` directory next to it, with the change alone as
 file that differs on the host (the `scansuite` command, the scanner lists) is
 replaced, with a copy in the same directory.
 
+Your own TLS certificate in `services/nginx/certs/` is kept together with its
+key: when you changed either file, the update puts both back as they were.
+The user who runs the update must be able to read them; a key copied there
+with `sudo cp` belongs to root, and the update stops and says to run
+`sudo chown $USER: services/nginx/certs/*.pem`. If `key.pem` is not the key
+of `cert.pem`, nginx cannot start, so the update puts the release's
+self-signed pair in place and keeps yours in a `.replaced-<date>` directory.
+
 An installation made before 21 September 2026 runs `./scansuite update` twice:
 its first run fetches the new `scansuite` command, the second applies the
 release with it (the last line then names the licence code alone, not
@@ -147,6 +155,6 @@ there to type the password, a restore reads it from `SCANSUITE_BACKUP_PASSWORD`.
 | `backups/` | where `./scansuite --backup-db` and `--backup-secrets` write when given no other place. Updates never touch it |
 | `docker-compose.yml` | the services. The release is `SCANSUITE_TAG` in `.env`, not a line here. A change you make is merged into each new release (see Upgrading) |
 | `docker-compose.local.yml` | optional, yours: what this host changes, e.g. `web: ports: ["127.0.0.1:5000:5000"]` behind its own reverse proxy. Updates never touch it and every start includes it — the surest place for a change that must survive any release |
-| `services/nginx/certs/` | the TLS certificate nginx serves — replace with your own; updates keep it |
+| `services/nginx/certs/` | the TLS certificate nginx serves and its key — replace both with your own; updates keep the pair |
 | `scanners.d/` | the scanner images this release pulls |
 | `RELEASE` | which release this is, and what it was built from |

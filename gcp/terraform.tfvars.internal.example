@@ -2,7 +2,7 @@
 # An internal installation: no external address, reachable only from inside
 # the VPC and the corporate network connected to it, images copied from an
 # internal registry. Copy to terraform.tfvars and fill in the <...> values.
-# The walkthrough is docs/gcp-internal-runbook.md.
+# The walkthrough is docs/operations/gcp-internal.md.
 ###############################################################################
 
 project_id = "<project id>"
