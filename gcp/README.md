@@ -363,7 +363,7 @@ cloudsql_name = "scansuite-pg-2"
 **Scan code.** Create a product, point it at a git repository, or upload an
 archive, and start a scan. Each scan runs as its own Cloud Run job execution,
 so several scans run side by side without slowing the UI. The user guide is at
-https://scansuite.gitbook.io/.
+https://scansuite.eu/documentation.
 
 Uploads through the browser are limited to **32 MiB** on Cloud Run. Scan larger
 code from its git repository instead.

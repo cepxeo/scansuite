@@ -8,11 +8,7 @@
 static
 semgrep-local
 semgrep
-gitleaks
-trufflehog
-noseyparker
 kics
-osv-scanner
 gosec
 spotbugs
 bandit
@@ -21,4 +17,3 @@ nodejs-scan
 brakeman
 security-code-scan
 flawfinder
-codeql

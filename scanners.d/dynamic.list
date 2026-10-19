@@ -1,11 +1,7 @@
 # Dynamic-analysis and infrastructure scanner images.  See static.list.
-arachni
 wapiti
 osint
 bruter
 nuclei
 dastardly
 zap-stable
-wpscan
-sslyze
-vuls

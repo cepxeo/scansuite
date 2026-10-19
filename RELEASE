@@ -1,6 +1,6 @@
 product=ScanSuite Teams
 release=4.7
-commit=ff04bb1
-built=2026-10-17T11:16:22Z
+commit=81de707
+built=2026-10-19T05:05:58Z
 images=appsec4u/teams-web, appsec4u/teams-worker, appsec4u/teams-worker-poc
 tag_format=<licence code>

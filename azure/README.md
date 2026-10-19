@@ -191,7 +191,7 @@ terraform output
 **Scan code.** Create a product, point it at a git repository, or upload an
 archive, and start a scan. Each scan runs in its own container, so several
 scans run side by side without slowing the UI. The user guide is at
-https://scansuite.gitbook.io/.
+https://scansuite.eu/documentation.
 
 **Scan from CI.** Create a token on the team's settings page, in the
 **Automation and API tokens** card, and run the pipeline client `scansuite-ci`
