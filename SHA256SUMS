@@ -1,8 +1,8 @@
 66ba220d18ce5d6b7056d9dd8739bd820c46f8cb9f70b99ff6e3be55a484577b *./.env.example
 b896b3d03647293c3b48ff75aca5aaea647f50d56c575a31d3c6c94c0ba791a9 *./.gitattributes
 0654a39d06f0d5c65765a519fe7fa055a5397e2f7c96730b8d8501d0a753dba2 *./.gitignore
-139590de3ed8509c4c2e7cdd7b20eb0de3d889418eaf27aea3397ed508c06a55 *./README.md
-58605eb8810e4c1693ffde3e758e0cb79cd7f972f79cc3aa2c811bc46f4f3183 *./RELEASE
+2cbabe34864340410d6dd476992eef1f33112bf796673c30b340e2ae80798d70 *./README.md
+adc0dbcfbbbe3995cc3ba0a59471db69e9ed455133dfa37c7a5bbbc1cce28bb5 *./RELEASE
 8c4fd5e25c21ef2d4d8a129c1ec62549dba580c93516bd8aff7837d4b34c774a *./azure/.gitignore
 c97a826ebe537ebb540620579e3e1c19a2fa284fe366867c1ebb245979cc73cd *./azure/.terraform.lock.hcl
 76892d143649a5d90dec504d329ef3df77dff5db10ca37b45da9f0f73ea0ee9a *./azure/README.md
@@ -60,7 +60,7 @@ f2803077f193dad0c37cff2bbb1a068b25c8f0f1ae0a3f47f1baefbc5645705c *./compose.d/po
 49f8101612d1a8f57cd5d20af0fcc25f07f4eb85b857fa40120aeb974f59b02f *./defectdojo/certs/nginx.crt
 71f5bb3519bb017e80ebb4c48e65fef1cf34c11a65d5c37a60dd5530421386f0 *./defectdojo/certs/nginx.key
 ff577e8f8c3c4001bb1ee90c69aad6a6e3662968d56dc967884908d02c8ca3ed *./defectdojo/docker-compose.yml
-8e85336ebb3288bf1f2cbc2f9f60ab99e00115957b98b1ed62c44c38a3e27d56 *./docker-compose.yml
+c6803ea01f7a324059f497c9c82e270e8f95801ed292992a7c2d41ead5910668 *./docker-compose.yml
 a7e583a572fc65182980e2a1621d836318a4c8d1b7340b65ed1c536c6188e4f0 *./gcp/.gitignore
 b96ead61b48d468ba75b4cf0e58f20e5bef7cb96b7acc9ada5d3366320c5f620 *./gcp/.terraform.lock.hcl
 788147d0c3c07d7fa17707c44243fd2169a18e1be91769e5a11cbd0f38d77d53 *./gcp/README.md
@@ -129,11 +129,11 @@ e58d6d758c69e4bd8d88289abd6f5caba3c503fd367ba9265c345bdc669183de *./gcp/terrafor
 1c294df6fbd29a6d19f32d8c382d2e019a6ee11d9dfb04581c11afa2e42be127 *./gcp/variables.tf
 6dc0e2703ff06a8a8e1d6ae94592a97c36e1ebb39c0dea1cf2577eed5e7924cf *./gcp/versions.tf
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 *./key/dummy_key
-bac4d47e684e54898ad47de2b415c669b9b91b2b3d46e524fc0b467ba3740496 *./scanners.d/dojo.list
+5f2bd7fa40bbe8004e589d2ee1c14b6a8724c916459ac73c7295925be3267c63 *./scanners.d/dojo.list
 3ab56de256171eaaf70ca92dea4411d68056d6e92b1abf49c9520ae83444d55e *./scanners.d/dynamic.list
 b534138f17ab10f282c2383a74c9847f51b8b6930c42e2bd0fe0c9ada38a7982 *./scanners.d/infra.list
 b702693673b1344c5b65ee11452e9291e3e61a90ff935db8195637102e1d7a7d *./scanners.d/static.list
-f8fb506d751f8fe73853f57c7b6382706dae6a71f21d2da547a794390057a5bd *./scansuite
+149f5cef4159be0ce4d8f6ca6a8054428d65cedcf8ea1fa32801faa4d3a596e8 *./scansuite
 3c54f40c5083cfc0c9d2e00db27c7d3cac5f8720665cfa5e71c76ace8239d2ca *./services/nginx/certs/cert.pem
 5baf2cd1b19f5b7f651fcac9eb93a0b65fb2f4c96de32c12f87b079d0d6aec3b *./services/nginx/certs/key.pem
 af22ba4b9419052b5fed60435e0b62cfba4cad73e83d168796894f5b87f1a9c9 *./services/nginx/default.conf.template

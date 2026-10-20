@@ -30,7 +30,7 @@ how to deploy it, use it and tear it down.
 
 ### Choosing what is installed
 
-By default the application and DefectDojo are installed, without external
+By default only the application is installed, without DefectDojo or external
 scanner containers. `install` and `update` take these options, and remember
 them in `.env`, so a later `update` or `start` keeps to the same choice until
 you give another:
@@ -39,12 +39,14 @@ you give another:
 ./scansuite install <code> --all-scanners   # every external scanner
 ./scansuite install <code> --static-only    # only the static (code) scanners
 ./scansuite install <code> --dynamic-only   # only the dynamic and infrastructure scanners
-./scansuite install <code> --no-dojo        # without DefectDojo
-./scansuite update --no-scanners --with-dojo  # back to the default
+./scansuite install <code> --with-dojo      # with DefectDojo as well
+./scansuite update --with-dojo              # add DefectDojo to a running installation
+./scansuite update --no-scanners --no-dojo  # back to the default
 ```
 
-The options combine, e.g. `--static-only --no-dojo`. `--scanners=all|static|dynamic|none`
+The options combine, e.g. `--static-only --with-dojo`. `--scanners=all|static|dynamic|none`
 is the same choice in one word. Turning DefectDojo off stops it and keeps its data.
+An installation that already runs DefectDojo keeps it on `update`.
 
 ### Managing the installation
 
@@ -145,6 +147,19 @@ The password protection is the standard one of zip, which every zip program
 opens. It stops the file from being read in passing, not a determined attack,
 so store a protected zip as carefully as any other secret. Where nobody is
 there to type the password, a restore reads it from `SCANSUITE_BACKUP_PASSWORD`.
+
+The generated password is printed only to a terminal. For a scheduled backup,
+whose output goes to a log, give `--password-file <file>`: the password is
+written there (mode 600) instead of printed, and a later run finds the file and
+uses the same password again. `--password-file` on a database backup implies
+`--encrypt`, and a restore takes it as well:
+
+```bash
+./scansuite --backup-db --password-file /root/scansuite-backup.pass
+./scansuite --restore-db backups/<zip> --password-file /root/scansuite-backup.pass
+```
+
+Keep the password file off the backup disk.
 
 ### What is on this host
 

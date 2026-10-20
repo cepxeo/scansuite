@@ -9,10 +9,15 @@
 #   key/                    the licence file (<name>_<code>.lic), and key.json if used
 #   services/nginx/         default.conf.template and certs/ (cert.pem, key.pem)
 #
-# THIS FILE IS NEVER EDITED ON THE HOST.  The release is selected by
-# SCANSUITE_TAG in .env, which `scansuite install` and `scansuite update` write,
-# so `git pull` always applies cleanly.  Optional services live in compose.d/
-# and are switched on through COMPOSE_FILE in .env.
+# The release is selected by SCANSUITE_TAG in .env, which `scansuite install`
+# and `scansuite update` write.  Optional services live in compose.d/ and are
+# switched on through COMPOSE_FILE in .env.
+#
+# Changes of your own belong in docker-compose.local.yml, which is the host's
+# alone and is loaded after this file from the next start on.  An edit here is
+# not lost either: `scansuite update` merges it into the next release's file,
+# and where the release changed the same lines it keeps the release's version
+# and saves yours next to it, saying so.
 
 # Shared /key bootstrap. Decodes the base64 licence and service-account key into
 # /key at container start, skipping either that is already present (the ./key

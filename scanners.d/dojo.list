@@ -1,4 +1,4 @@
 # DefectDojo images, pulled when the product manifest sets FEATURE_DOJO=1 and
-# the operator has not passed --no-dojo.
+# the operator chose --with-dojo (DefectDojo is not installed by default).
 defectdojo-django
 defectdojo-nginx
