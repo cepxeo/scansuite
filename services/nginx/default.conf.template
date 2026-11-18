@@ -1,0 +1,47 @@
+server {
+    listen 443 ssl;
+    # Keep in step with MAX_UPLOAD_MB (services/server/configuration/uploads.py,
+    # default 2000): the application refuses anything larger either way.
+    client_max_body_size 2000M;
+    proxy_read_timeout 600;
+    proxy_connect_timeout 600;
+    proxy_send_timeout 600;
+
+    ssl_certificate /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+
+    server_tokens off;
+    server_name web;
+
+    # On every response, errors included (always). No page frames the
+    # application from another origin. No HSTS: a default installation serves a
+    # self-signed certificate, and HSTS would take away the browser's
+    # click-through.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Content-Security-Policy "frame-ancestors 'self'" always;
+
+    # Docker's embedded DNS, consulted while nginx runs.  A literal name in
+    # proxy_pass is resolved once, when a worker starts, and that address is
+    # kept for the life of the worker: recreating a service (every update does)
+    # leaves nginx dialling the container that used to be there, and every
+    # request fails with "connect() failed (111: Connection refused)" until
+    # nginx itself is restarted.  A name held in a variable is resolved through
+    # this resolver instead, so the new address is picked up within valid=.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    location / {
+        set $web_upstream web;
+        proxy_pass http://$web_upstream:5000$request_uri;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80 default_server;
+    server_name _;
+    server_tokens off;
+    return 301 https://$host$request_uri;
+}

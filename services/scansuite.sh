@@ -1,0 +1,102 @@
+#!/bin/bash
+#
+# First-run bootstrap: the script a new client runs in the folder holding the
+# licence file they were sent.  It clones the installation repository, puts the
+# licence in place and hands over to ./scansuite.
+#
+# REPO, BRANCH and APP_DIR below are filled in by build.sh from the product
+# manifest; do not edit them here.
+
+set -uo pipefail
+
+REPO="https://github.com/cepxeo/scansuite"
+# The repository's branch for this product (its default branch is another's).
+BRANCH="scansuite-ai"
+# An absolute path, or one relative to the home directory.
+APP_DIR="/opt/scansuite-ai"
+case "$APP_DIR" in /*) ;; *) APP_DIR="$HOME/$APP_DIR" ;; esac
+
+if ! ls ./*.lic >/dev/null 2>&1; then
+    echo "No licence file (*.lic) in this folder. Copy the one sent with your"
+    echo "order next to this script and run it again."
+    exit 1
+fi
+
+# The installation is a git checkout, and a fresh server often has no git.
+# ./scansuite installs Docker itself, but only after the clone.
+if ! command -v git >/dev/null 2>&1; then
+    echo "[*] Installing git"
+    SUDO=""
+    [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+    if command -v apt-get >/dev/null 2>&1; then
+        $SUDO apt-get update -y >/dev/null && $SUDO apt-get install -y git >/dev/null
+    elif command -v dnf >/dev/null 2>&1; then
+        $SUDO dnf install -y git >/dev/null
+    elif command -v yum >/dev/null 2>&1; then
+        $SUDO yum install -y git >/dev/null
+    fi
+    command -v git >/dev/null 2>&1 || {
+        echo "Could not install git. Install it and run this again."
+        exit 1
+    }
+fi
+
+for file in ./*.lic; do
+    code=$(basename "$file" | sed 's/.*_\(.*\)\.lic$/\1/')
+    if [ "${#code}" -ne 6 ]; then
+        echo "Unexpected licence file name: $(basename "$file")"
+        echo "It should look like <name>_<6 character code>.lic"
+        exit 1
+    fi
+    lic_path=$(realpath "$file")
+
+    # Under /opt only root can write. Create the directory once and hand it to
+    # whoever runs the installation, so every later command works without sudo.
+    if [ ! -d "$APP_DIR" ]; then
+        if ! mkdir -p "$APP_DIR" 2>/dev/null; then
+            echo "[*] Creating $APP_DIR (needs sudo)"
+            sudo mkdir -p "$APP_DIR" && sudo chown "$(id -u):$(id -g)" "$APP_DIR" || {
+                echo "Could not create $APP_DIR."
+                exit 1
+            }
+        fi
+    fi
+    if [ ! -w "$APP_DIR" ]; then
+        echo "$APP_DIR is not writable by $(id -un). Run this as the account that owns it."
+        exit 1
+    fi
+    if [ -d "$APP_DIR/.git" ]; then
+        echo "[*] Updating the existing installation in $APP_DIR"
+        git -C "$APP_DIR" pull --ff-only || {
+            echo "Could not update $APP_DIR. Resolve the git state there and run:"
+            echo "  cd $APP_DIR && ./scansuite update $code"
+            exit 1
+        }
+    else
+        git clone --branch "$BRANCH" "$REPO" "$APP_DIR" || exit 1
+    fi
+
+    # A copy: the file the customer was sent stays where it is.
+    mkdir -p "$APP_DIR/key"
+    if [ ! "$lic_path" -ef "$APP_DIR/key/$(basename "$lic_path")" ]; then
+        cp "$lic_path" "$APP_DIR/key/" || { echo "Could not copy the licence to $APP_DIR/key."; exit 1; }
+    fi
+    echo "[+] Licence $(basename "$lic_path") copied to $APP_DIR/key"
+
+    cd "$APP_DIR" || exit 1
+    if ./scansuite install "$code"; then
+        echo ""
+        echo "Manage the installation from $APP_DIR:"
+        echo "  ./scansuite status          what is running"
+        echo "  ./scansuite logs web        recent log lines"
+        echo "  ./scansuite doctor          check the host and the installation"
+        echo "  ./scansuite update          fetch and apply a new release"
+        echo ""
+        exit 0
+    fi
+
+    echo ""
+    echo "Installation failed. The reason is usually in:"
+    echo "  cd $APP_DIR && ./scansuite doctor"
+    exit 1
+done

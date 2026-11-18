@@ -1,0 +1,59 @@
+# Runs generated verification PoCs: no Docker socket, read-only, only the
+# capabilities that start a PoC as another user.  Its image is built from the protected code too; the licence is
+# mounted read-only because the container cannot write /key.
+#
+# Enabled by FEATURE_POC_WORKER in the product manifest; the installer adds this
+# file to COMPOSE_FILE in .env.  Where the product also has a migration job,
+# poc-migrate.yml makes this service wait for it -- it must not start before the
+# schema exists and the installation's secrets have been written.
+
+services:
+
+  worker_poc:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_POC:-ai-worker-poc}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    # The same cap as the services in docker-compose.yml (anchors do not
+    # reach across compose files).
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    # As the workers in docker-compose.yml: a crashed one comes back on its own.
+    restart: unless-stopped
+    command: python /app/work_poc.py
+    read_only: true
+    # The image runs as root so each PoC starts as uid 10002 (setpriv), which
+    # cannot read the passwords below from /proc: SETUID and SETGID for that,
+    # KILL to end a PoC that runs out of time.
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 768m
+    cpus: 1
+    init: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - ./key:/key:ro
+    environment:
+      PS_DATABASE_HOST: ${PS_DATABASE_HOST:-postgres}
+      PS_DATABASE_NAME: ${PS_DATABASE_NAME:-scansuite}
+      PS_DATABASE_PASSWORD: ${PS_DATABASE_PASSWORD:-}
+      PS_DATABASE_PORT: ${PS_DATABASE_PORT:-5432}
+      PS_DATABASE_USER: ${PS_DATABASE_USER:-scansuite}
+      CELERY_HOST: ${CELERY_HOST:-redis}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # The same clock as the other workers: Celery compares their timestamps
+      # and warns of drift when one of them runs in UTC.
+      TZ: ${TZ:-Europe/Moscow}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

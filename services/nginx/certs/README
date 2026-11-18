@@ -1,0 +1,2 @@
+cert.pem and key.pem: your certificate and its key, or the self-signed pair
+`scansuite install` creates for this host when there is none.
