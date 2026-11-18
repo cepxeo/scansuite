@@ -317,7 +317,7 @@ variable "source_registry" {
 }
 
 variable "source_image_names" {
-  description = "Image names in source_registry, when they differ from the canonical ones (teams-web, teams-worker, teams-worker-poc). The copies keep the canonical names."
+  description = "Image names in source_registry, when they differ from the canonical ones (teams-web, teams-worker, teams-worker-poc). The copies keep the canonical names. A name left out is looked up as its canonical one."
   type        = map(string)
   default = {
     teams-web        = "teams-web"
@@ -544,3 +544,24 @@ variable "internal_only" {
 ###############################################################################
 # Platform console (optional, off by default)
 ###############################################################################
+
+###############################################################################
+# Extra application settings
+###############################################################################
+
+variable "extra_env" {
+  description = <<-EOT
+    More environment variables for every ScanSuite service and job on Cloud Run
+    (web, workers, the SAST job; platform = "gke" does not take them): settings
+    that have no Terraform variable of their own. Plain values, visible in
+    the service configuration: never a secret. A name the deployment sets itself
+    is refused. Changing it rolls the services to a new revision.
+  EOT
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for name in keys(var.extra_env) : can(regex("^[A-Z][A-Z0-9_]*$", name))])
+    error_message = "extra_env: names are upper case letters, digits and underscores, starting with a letter."
+  }
+}

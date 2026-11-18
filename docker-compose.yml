@@ -54,9 +54,13 @@ services:
       - ./services/nginx/certs:/etc/nginx/certs
     environment:
       TZ: ${TZ:-Europe/Moscow}
+      # The port-80 redirect names it (default.conf.template).
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+    # HTTP_PORT and HTTPS_PORT in .env move the site off 80 and 443: the
+    # installer does that when another installation on this host holds them.
     ports:
-      - "443:443"
-      - "80:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTP_PORT:-80}:80"
     links:
       - web
     depends_on:
@@ -160,6 +164,7 @@ services:
   postgres:
     image: postgres:13-alpine
     logging: *default_logging
+    command: ["postgres", "-c", "max_connections=200"]
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:

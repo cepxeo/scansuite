@@ -5,13 +5,15 @@
 # licence in place and hands over to ./scansuite.
 #
 # CLIENT_REPO and APP_DIR below are filled in by build.sh from the product
-# manifest; do not edit them here.
+# manifest; do not edit them here. SCANSUITE_APP_DIR=<path> installs elsewhere,
+# and every argument is passed on to `./scansuite install` (--instance=,
+# --https-port=, --dojo-dir= and the rest: ./scansuite help).
 
 set -uo pipefail
 
 REPO="https://github.com/cepxeo/scansuite"
 # An absolute path, or one relative to the home directory (the product decides).
-APP_DIR="/opt/scansuite"
+APP_DIR="${SCANSUITE_APP_DIR:-/opt/scansuite}"
 case "$APP_DIR" in /*) ;; *) APP_DIR="$HOME/$APP_DIR" ;; esac
 
 if ! ls ./*.lic >/dev/null 2>&1; then
@@ -64,6 +66,14 @@ for file in ./*.lic; do
         exit 1
     fi
     if [ -d "$APP_DIR/.git" ]; then
+        # Another product's checkout in this directory (ScanSuite where Teams
+        # would go, or the reverse) is that installation, not this one's.
+        origin="$(git -C "$APP_DIR" remote get-url origin 2>/dev/null || true)"
+        if [ -n "$origin" ] && [ "${origin%.git}" != "${REPO%.git}" ]; then
+            echo "$APP_DIR is another installation (its repository is $origin)."
+            echo "Install this one elsewhere: SCANSUITE_APP_DIR=<directory> $0"
+            exit 1
+        fi
         echo "[*] Updating the existing installation in $APP_DIR"
         git -C "$APP_DIR" pull --ff-only || {
             echo "Could not update $APP_DIR. Resolve the git state there and run:"
@@ -82,7 +92,7 @@ for file in ./*.lic; do
     echo "[+] Licence $(basename "$lic_path") copied to $APP_DIR/key"
 
     cd "$APP_DIR" || exit 1
-    if ./scansuite install "$code"; then
+    if ./scansuite install "$code" "$@"; then
         echo ""
         echo "Manage the installation from $APP_DIR:"
         echo "  ./scansuite status          what is running"

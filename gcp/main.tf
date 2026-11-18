@@ -264,7 +264,9 @@ module "storage" {
 # file, so pointing that file at stdout puts application logs into Cloud
 # Logging with no code change.
 locals {
-  app_config = {
+  # What the deployment sets for every service and job. extra_env adds to it
+  # (app_config, below) but may not replace any of it (terraform_data.extra_env).
+  managed_config = {
     PS_DATABASE_HOST = module.cloudsql.private_ip
     PS_DATABASE_PORT = "5432"
     PS_DATABASE_NAME = module.cloudsql.database_name
@@ -297,6 +299,15 @@ locals {
 
     TZ = var.timezone
   }
+
+  app_config = merge(var.extra_env, local.managed_config)
+
+  # Names extra_env may not use: what the deployment sets, the secrets (also
+  # environment variables), and what the Cloud Run module and Cloud Run add.
+  reserved_env = setunion(keys(local.managed_config), keys(merge(local.operational_secret_sources, local.key_secret_sources, local.licence_secret_sources)), [
+    "EXECUTION_BACKEND", "CLOUDRUN_PROJECT", "CLOUDRUN_REGION", "CLOUDRUN_JOB_NAME",
+    "SCANSUITE_DB_POOL_SIZE", "SCANSUITE_DB_MAX_OVERFLOW", "PYARMOR_RKEY", "SCAN_ID", "PORT",
+  ])
 }
 
 ###############################################################################
@@ -595,7 +606,7 @@ module "kubernetes" {
 
   redis_host     = module.memorystore.host
   redis_password = module.memorystore.auth_string
-  redis_config   = { for k in ["REDIS_PORT", "REDIS_TLS", "REDIS_CA_PEM", "REDIS_CA_CERTS"] : k => local.app_config[k] }
+  redis_config   = { for k in ["REDIS_PORT", "REDIS_TLS", "REDIS_CA_PEM", "REDIS_CA_CERTS"] : k => local.managed_config[k] }
 
   artifact_bucket = module.storage.artifact_bucket_name
 
@@ -716,4 +727,17 @@ module "observability" {
   internal_only     = var.internal_only
 
   depends_on = [module.lb]
+}
+
+# extra_env may only add settings: a name the deployment sets itself is refused
+# instead of being replaced silently.
+resource "terraform_data" "extra_env" {
+  input = sort(keys(var.extra_env))
+
+  lifecycle {
+    precondition {
+      condition     = length(setintersection(keys(var.extra_env), local.reserved_env)) == 0
+      error_message = "extra_env (${join(", ", sort(keys(var.extra_env)))}) names a variable the deployment sets itself: one of its settings or secrets, or EXECUTION_BACKEND, CLOUDRUN_*, SCANSUITE_DB_*, PYARMOR_RKEY, SCAN_ID, PORT. Use the deployment's own variable for it (e.g. scan_cpu)."
+    }
+  }
 }

@@ -82,4 +82,3 @@ variable "internal_only" {
   type        = bool
   default     = false
 }
-

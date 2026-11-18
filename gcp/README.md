@@ -34,10 +34,10 @@ have private addresses only. Images are read through your project's Artifact
 Registry, pinned to exact digests.
 
 **Scope: static analysis.** Cloud Run has no Docker daemon, so the scanners
-that run as separate containers do not run here. That covers dynamic web
-scanning (DAST) and infrastructure scanning. Code (SAST), dependency (SCA),
-Infrastructure-as-Code, secrets and AI code analysis all work. For dynamic
-scans, install on a Linux server (`../README.md`).
+that run as separate containers do not run here. That covers the classic
+dynamic web scanning (DAST) and infrastructure scanning. Code (SAST),
+dependency (SCA), Infrastructure-as-Code, secrets and AI code analysis all
+work. For the dynamic scanners, install on a Linux server (`../README.md`).
 
 ---
 
@@ -158,7 +158,7 @@ terraform output
 
 `terraform.tfvars` for common installations. A, B and C are complete files:
 copy the one that fits, put in your own values, and run `./deploy.sh` as in
-section 2. D to G are the lines to add to one of them. The registry token always
+section 2. D to H are the lines to add to one of them. The registry token always
 comes from the shell, never from the file:
 
 ```bash

@@ -36,5 +36,7 @@ server {
     listen 80 default_server;
     server_name _;
     server_tokens off;
-    return 301 https://$host$request_uri;
+    # The port the host publishes 443 on (HTTPS_PORT, set by compose): without
+    # it a site moved off 443 sent its visitors to whatever holds 443 instead.
+    return 301 https://$host:${HTTPS_PORT}$request_uri;
 }

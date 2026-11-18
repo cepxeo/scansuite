@@ -25,3 +25,8 @@ output "psa_connection" {
   description = "Handle for depends_on - Cloud SQL and Memorystore must not be created before the peering exists."
   value       = google_service_networking_connection.psa.id
 }
+
+output "internet_route" {
+  description = "The route to the internet that egress_mode = \"nat\" keeps (destination and priority), or null."
+  value       = one([for route in google_compute_route.internet : { dest_range = route.dest_range, priority = route.priority }])
+}

@@ -25,6 +25,11 @@
 
 set -euo pipefail
 
+# No gcloud command may stop to ask: with its output hidden (2>/dev/null) a
+# question such as "enable the Cloud Billing API? (y/N)" waits for Enter unseen.
+# Without prompts gcloud takes the default answer (no) and the check reports it.
+export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+
 cd "$(dirname "$0")"
 
 log() { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -67,11 +72,11 @@ gcloud projects describe "${PROJECT}" --format='value(projectId)' >/dev/null 2>&
   || die "project ${PROJECT} does not exist or this account cannot see it"
 
 # Without billing every API enablement and resource fails, late and one by one.
-billing="$(gcloud billing projects describe "${PROJECT}" --format='value(billingEnabled)' 2>/dev/null || true)"
+billing="$(gcloud billing projects describe "${PROJECT}" --format='value(billingEnabled)' </dev/null 2>/dev/null || true)"
 case "${billing}" in
   True|true) ;;
   False|false) die "billing is not enabled on ${PROJECT}. Link a billing account first: gcloud billing projects link ${PROJECT} --billing-account=<id>" ;;
-  *) echo "  warning: could not read the billing state of ${PROJECT} (no billing.projects.get permission?); continuing" >&2 ;;
+  *) echo "  warning: could not read the billing state of ${PROJECT} (the Cloud Billing API is off, or no billing.projects.get permission); continuing" >&2 ;;
 esac
 
 # A new installation's setup page belongs to whoever opens it first.
@@ -130,7 +135,7 @@ copy_from_source() { # copy_from_source <destination repository>
       skopeo login --username oauth2accesstoken --password-stdin "${destination_host}" >/dev/null ||
       die "could not sign in to ${destination_host}"
     for image in "${IMAGE_NAMES[@]}"; do
-      name="$(tf_var "var.source_image_names[\"${image}\"]")"
+      name="$(tf_var "lookup(var.source_image_names, \"${image}\", \"${image}\")")"
       skopeo copy --all "docker://${SOURCE}/${name}:${TAG}" "docker://${destination}/${image}:${TAG}" >/dev/null ||
         { skopeo logout "${source_host}" >/dev/null 2>&1; die "could not copy ${SOURCE}/${name}:${TAG}"; }
       echo "  ${SOURCE}/${name}:${TAG} -> ${image}:${TAG}"
@@ -142,7 +147,7 @@ copy_from_source() { # copy_from_source <destination repository>
       die "could not sign in to ${source_host} as ${SOURCE_REGISTRY_USERNAME}"
     gcloud auth configure-docker "${destination_host}" --quiet >/dev/null 2>&1
     for image in "${IMAGE_NAMES[@]}"; do
-      name="$(tf_var "var.source_image_names[\"${image}\"]")"
+      name="$(tf_var "lookup(var.source_image_names, \"${image}\", \"${image}\")")"
       { docker pull -q "${SOURCE}/${name}:${TAG}" >/dev/null &&
         docker tag "${SOURCE}/${name}:${TAG}" "${destination}/${image}:${TAG}" &&
         docker push -q "${destination}/${image}:${TAG}" >/dev/null; } ||

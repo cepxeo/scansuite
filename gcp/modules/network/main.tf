@@ -155,6 +155,23 @@ moved {
   to   = google_compute_router_nat.nat[0]
 }
 
+# The way out for egress_mode = "nat". A VPC created with egress_mode = "none"
+# has no default route, and delete_default_routes_on_create only acts when the
+# VPC is created: switching such a VPC to "nat" left every workload with
+# "network is unreachable". This route stands in for the default one; on a VPC
+# created with "nat" the default route (priority 1000) still wins and this one
+# waits behind it.
+resource "google_compute_route" "internet" {
+  count = local.nat ? 1 : 0
+
+  project          = var.project_id
+  name             = "${var.prefix}-internet"
+  network          = google_compute_network.vpc.name
+  dest_range       = "0.0.0.0/0"
+  next_hop_gateway = "default-internet-gateway"
+  priority         = 1001
+}
+
 ###############################################################################
 # Google APIs without the internet (egress_mode = "none")
 ###############################################################################

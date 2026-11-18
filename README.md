@@ -48,6 +48,38 @@ The options combine, e.g. `--static-only --with-dojo`. `--scanners=all|static|dy
 is the same choice in one word. Turning DefectDojo off stops it and keeps its data.
 An installation that already runs DefectDojo keeps it on `update`.
 
+### Next to another installation on the same host
+
+ScanSuite and ScanSuite Teams can run on one host, each with its own data.
+Each installation has an **instance name** (`COMPOSE_PROJECT_NAME` in `.env`).
+Its containers, volumes, boot service (`<name>.service`) and the launcher on
+PATH (`/usr/local/bin/<name>`) are named after it. ScanSuite runs as
+`scansuite`; a new ScanSuite Teams installation runs as `scansuite-teams`. An
+installation that already runs keeps its name.
+
+Installing the second product on such a host needs nothing extra:
+
+- **Ports.** When the other installation holds 443 or 80, the new one picks
+  free ports (from 8444 and 8081) and says which: `HTTPS_PORT` and `HTTP_PORT`
+  in `.env`. Choose them yourself with `--https-port=<n> --http-port=<n>`.
+- **DefectDojo is shared.** When the other installation runs DefectDojo, the
+  new one records its directory as `DOJO_DIR` in `.env` and manages that
+  DefectDojo: `start`, `dojo password`, `dojo reset`, the backups and the image
+  updates all act on it, as they do from the other installation. Name it
+  yourself with `--dojo-dir=<path>`. In ScanSuite Teams, connect it on the Teams
+  page, Integrations tab, with `https://<host name or IP>:8443` (not
+  `localhost`, which is the container itself) and an API key of its own.
+- **Safety.** The installer stops instead of touching another installation:
+  an instance name another directory's containers already run under, a
+  database volume of that name no installation here made (`--adopt-volumes`
+  takes it over on purpose), or a directory that holds the other product.
+  Each product's `scansuite` command manages its own directory only.
+
+```bash
+./scansuite install <code> --instance=teams-b --https-port=9443 --http-port=9080
+SCANSUITE_APP_DIR=/srv/teams sh scansuite.sh --dojo-dir=/home/scan/apps/scansuite/defectdojo
+```
+
 ### Managing the installation
 
 ```bash
@@ -165,7 +197,7 @@ Keep the password file off the backup disk.
 
 | Path | |
 |---|---|
-| `.env` | settings and secrets, generated on the first install — keep it |
+| `.env` | settings and secrets, generated on the first install — keep it. Also which installation this is: its instance name, ports and the DefectDojo it manages (see Next to another installation) |
 | `key/` | your licence file, and `scansuite-secrets.env` (owned by root): the keys that decrypt the credentials stored in the database. It is made on the first start; back it up with the database (`./scansuite --backup-secrets`), which is unreadable in part without it |
 | `backups/` | where `./scansuite --backup-db` and `--backup-secrets` write when given no other place. Updates never touch it |
 | `docker-compose.yml` | the services. The release is `SCANSUITE_TAG` in `.env`, not a line here. A change you make is merged into each new release (see Upgrading) |
