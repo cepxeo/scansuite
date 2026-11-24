@@ -93,6 +93,7 @@ SCANSUITE_APP_DIR=/srv/teams sh scansuite.sh --dojo-dir=/home/scan/apps/scansuit
 ./scansuite update              # fetch the current release and apply it
 ./scansuite reset db            # empty the database and start over
 ./scansuite dojo password       # read or change the DefectDojo password
+./scansuite recover <user>      # nobody can administer: make <user> an installation admin, with a one-use password link
 ./scansuite --backup-db         # both databases into a zip (see Backing up and restoring)
 ./scansuite --backup-secrets    # .env and key/ into a password-protected zip
 ./scansuite uninstall           # stop and remove the boot service

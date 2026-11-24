@@ -17,3 +17,4 @@ nodejs-scan
 brakeman
 security-code-scan
 flawfinder
+codeql
