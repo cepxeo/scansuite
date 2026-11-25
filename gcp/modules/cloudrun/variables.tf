@@ -20,8 +20,13 @@ variable "image_poc_runner" {
   type        = string
 }
 
+variable "poc_network_name" {
+  description = "The PoC runner job's VPC: its own, or the installation's with poc_network = \"shared\"."
+  type        = string
+}
+
 variable "poc_subnet_name" {
-  description = "The PoC runner job's subnet, whose egress rules close the installation's own ranges."
+  description = "The PoC runner job's subnet, in poc_network_name."
   type        = string
 }
 

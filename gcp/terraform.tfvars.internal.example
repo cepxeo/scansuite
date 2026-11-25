@@ -93,17 +93,24 @@ source_registry = "<quay.example.internal/organisation>"
 #
 # Each PoC runs as one execution of the <prefix>-poc job: the ai-poc-runner
 # image (copied from source_registry with the others), an identity with no
-# roles, no secret, and a subnet of its own whose egress rule closes Cloud SQL,
-# Memorystore and the workloads' subnet. Targets over the corporate connection
-# stay reachable. These are the defaults; an earlier terraform.tfvars needs none
-# of them.
+# roles, no secret, in a VPC of its own (<prefix>-poc-vpc) whose one route is to
+# Google APIs (its signed URLs): Cloud SQL, Memorystore, the workloads and the
+# corporate network cannot be reached from it, whatever a firewall policy
+# allows - and neither can targets. For PoCs against internal targets set
+# poc_network = "shared": a subnet of the installation's VPC, which reaches the
+# corporate connection, with a firewall rule closing Cloud SQL, Memorystore,
+# the workloads and poc_denied_ranges. Only do that where no hierarchical
+# firewall policy allows private egress first (gcloud compute networks
+# get-effective-firewalls shows it): such a policy overrides the rule. These are
+# the defaults; an earlier terraform.tfvars needs none of them.
 ###############################################################################
 
 poc_replicas             = 1              # the broker (worker-poc); it runs no PoC
 poc_max_runners          = 10             # PoC executions of the installation at once
 poc_task_timeout_seconds = 600            # one execution: the PoC (60 s), its start, its result
-poc_subnet_cidr          = "10.20.8.0/26" # free in the VPC and the corporate address plan, /26 or larger
-poc_denied_ranges        = []             # corporate ranges the runner may not reach (management networks, say)
+poc_network              = "own"          # "shared": internal targets reachable, see above
+poc_subnet_cidr          = "10.20.8.0/26" # /26 or larger; with "shared" free in the VPC and the corporate address plan
+poc_denied_ranges        = []             # with "shared": corporate ranges the runner may not reach (management networks, say)
 
 ###############################################################################
 # AI provider

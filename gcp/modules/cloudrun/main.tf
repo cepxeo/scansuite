@@ -614,9 +614,10 @@ resource "google_cloud_run_v2_worker_pool" "poc" {
 # poc_backends.py) with two overrides: POC_INPUT_URL and POC_OUTPUT_URL, signed
 # URLs for that PoC's two objects in the exchange bucket. Nothing else: no
 # ScanSuite code in the image, no secret, no licence, and an identity with no
-# roles, so neither the environment nor the metadata token opens anything. Its
-# subnet's egress rule (network module, poc_runner_deny) closes Cloud SQL,
-# Memorystore and the workloads' subnet; the targets stay reachable.
+# roles, so neither the environment nor the metadata token opens anything. It
+# runs in a VPC of its own (network module, poc_network.tf): no route to Cloud
+# SQL, Memorystore or the workloads' subnet. With poc_network = "shared" it is
+# a subnet of the installation's VPC behind the poc_runner_deny rule instead.
 
 resource "google_cloud_run_v2_job" "poc" {
   project             = var.project_id
@@ -639,7 +640,7 @@ resource "google_cloud_run_v2_job" "poc" {
       vpc_access {
         egress = "ALL_TRAFFIC"
         network_interfaces {
-          network    = var.network_name
+          network    = var.poc_network_name
           subnetwork = var.poc_subnet_name
           tags       = ["poc-runner"]
         }

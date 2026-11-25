@@ -16,7 +16,8 @@
 ###############################################################################
 
 locals {
-  nat = var.egress_mode == "nat"
+  nat        = var.egress_mode == "nat"
+  poc_shared = var.poc_network == "shared"
 
   # The two Private Google Access ranges. "restricted" serves only the APIs
   # VPC Service Controls supports, and is the one to use inside a perimeter.
@@ -62,10 +63,14 @@ resource "google_compute_subnetwork" "nodes" {
   }
 }
 
-# The PoC runner job's own subnet. It runs PoC code (services/poc-runner), so it
-# reaches the targets through the same NAT or corporate connection as the rest,
-# but nothing of the installation: see the poc_runner_deny rule below.
+# poc_network = "shared": the PoC runner job's subnet in this VPC. It reaches
+# the targets through the same NAT or corporate connection as the rest, and the
+# poc_runner_deny rule below keeps it from the installation - as long as no
+# hierarchical firewall policy allows that traffic first. The default, "own",
+# puts the runner in a VPC of its own instead (poc_network.tf).
 resource "google_compute_subnetwork" "poc" {
+  count = local.poc_shared ? 1 : 0
+
   project       = var.project_id
   name          = "${var.prefix}-poc-subnet"
   region        = var.region
@@ -162,6 +167,19 @@ moved {
 moved {
   from = google_compute_router_nat.nat
   to   = google_compute_router_nat.nat[0]
+}
+
+# Before poc_network existed the PoC subnet and its deny rule were in this VPC
+# unconditionally. With "shared" they stay as they are; with "own" (the
+# default) they are destroyed once the job has moved to its own VPC.
+moved {
+  from = google_compute_subnetwork.poc
+  to   = google_compute_subnetwork.poc[0]
+}
+
+moved {
+  from = google_compute_firewall.poc_runner_deny
+  to   = google_compute_firewall.poc_runner_deny[0]
 }
 
 # The way out for egress_mode = "nat". A VPC created with egress_mode = "none"
@@ -307,7 +325,13 @@ resource "google_compute_firewall" "internal" {
 # other private ranges stay reachable: internal installations test those over
 # the corporate connection. The metadata server is not routed through the VPC;
 # the runner's identity having no roles is what closes it.
+#
+# Only with poc_network = "shared". A hierarchical firewall policy that allows
+# egress to private ranges ends the evaluation before this rule: then it does
+# nothing, and only the default, a VPC of the runner's own, keeps it out.
 resource "google_compute_firewall" "poc_runner_deny" {
+  count = local.poc_shared ? 1 : 0
+
   project   = var.project_id
   name      = "${var.prefix}-poc-runner-deny"
   network   = google_compute_network.vpc.name

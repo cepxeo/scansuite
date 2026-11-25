@@ -129,14 +129,25 @@ variable "poc_task_timeout_seconds" {
   default     = 600
 }
 
+variable "poc_network" {
+  description = "\"own\" (default): the PoC runner job in a VPC of its own, with no route to the installation or the corporate network - internet targets through its own Cloud NAT (egress_mode = \"nat\"), or Google APIs only (\"none\"). \"shared\": a subnet of the installation's VPC behind a firewall rule, so PoCs reach internal targets over the corporate connection; only where no hierarchical firewall policy allows private egress first."
+  type        = string
+  default     = "own"
+
+  validation {
+    condition     = contains(["own", "shared"], var.poc_network)
+    error_message = "poc_network is \"own\" or \"shared\"."
+  }
+}
+
 variable "poc_subnet_cidr" {
-  description = "Subnet of the PoC runner job (Direct VPC egress, a /26 or larger). It must not overlap subnet_cidr or psa_cidr."
+  description = "Subnet of the PoC runner job (Direct VPC egress, a /26 or larger). With poc_network = \"shared\" it must not overlap subnet_cidr or psa_cidr; its own VPC is connected to nothing, so there any range will do."
   type        = string
   default     = "10.20.8.0/26"
 }
 
 variable "poc_denied_ranges" {
-  description = "Further ranges the PoC runner may not reach (it never reaches subnet_cidr or psa_cidr), e.g. corporate management networks."
+  description = "Further ranges the PoC runner may not reach. With poc_network = \"own\" private ranges are closed already: list public ones. With \"shared\" it never reaches subnet_cidr or psa_cidr: list corporate ones, e.g. management networks."
   type        = list(string)
   default     = []
 }

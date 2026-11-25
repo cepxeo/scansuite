@@ -95,6 +95,7 @@ module "network" {
   nat_ip_count = var.nat_ip_count
   psa_cidr     = var.psa_cidr
 
+  poc_network       = var.poc_network
   poc_subnet_cidr   = var.poc_subnet_cidr
   poc_denied_ranges = var.poc_denied_ranges
 
@@ -531,9 +532,10 @@ module "cloudrun" {
   prefix     = local.prefix
   labels     = local.labels
 
-  network_name    = module.network.network_name
-  subnet_name     = module.network.subnet_name
-  poc_subnet_name = module.network.poc_subnet_name
+  network_name     = module.network.network_name
+  subnet_name      = module.network.subnet_name
+  poc_network_name = module.network.poc_network_name
+  poc_subnet_name  = module.network.poc_subnet_name
 
   app_service_account_email     = module.iam.app_service_account_email
   poc_service_account_email     = module.iam.poc_service_account_email

@@ -33,6 +33,7 @@ output "poc_job" {
     name            = google_cloud_run_v2_job.poc.name
     service_account = google_cloud_run_v2_job.poc.template[0].template[0].service_account
     env_names       = [for env in google_cloud_run_v2_job.poc.template[0].template[0].containers[0].env : env.name]
+    network         = google_cloud_run_v2_job.poc.template[0].template[0].vpc_access[0].network_interfaces[0].network
     subnetwork      = google_cloud_run_v2_job.poc.template[0].template[0].vpc_access[0].network_interfaces[0].subnetwork
     tags            = google_cloud_run_v2_job.poc.template[0].template[0].vpc_access[0].network_interfaces[0].tags
     image           = google_cloud_run_v2_job.poc.template[0].template[0].containers[0].image

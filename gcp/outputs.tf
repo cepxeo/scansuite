@@ -15,6 +15,11 @@ output "scan_egress_ips" {
   value       = module.network.nat_ip_addresses
 }
 
+output "poc_egress_ips" {
+  description = "The static address PoCs reach internet targets from: the PoC runner's own Cloud NAT (poc_network = \"own\", egress_mode = \"nat\"). Empty otherwise: with \"shared\" PoCs use scan_egress_ips, with egress_mode = \"none\" they reach no target."
+  value       = module.network.poc_nat_ip_addresses
+}
+
 output "google_apis_range" {
   description = "With egress_mode = \"none\": the Private Google Access range googleapis.com and run.app resolve to inside the VPC. Route it from the corporate network to this VPC for internal browsers to reach the web UI."
   value       = module.network.google_apis_range

@@ -94,17 +94,20 @@ dockerhub_username = "<user sent with your licence>"
 # PoC runs
 #
 # Each PoC runs as one execution of the <prefix>-poc job: the ai-poc-runner
-# image, an identity with no roles, no secret, and a subnet of its own whose
-# egress rule closes Cloud SQL, Memorystore and the workloads' subnet. worker-poc
-# only hands the PoCs over. These are the defaults; an earlier terraform.tfvars
-# needs none of them.
+# image, an identity with no roles, no secret, in a VPC of its own
+# (<prefix>-poc-vpc) with no peering and no route but the internet through its
+# own Cloud NAT: Cloud SQL, Memorystore and the workloads cannot be reached from
+# it, whatever a firewall policy allows. Targets that allowlist by source see
+# the poc_egress_ips output. worker-poc only hands the PoCs over. These are the
+# defaults; an earlier terraform.tfvars needs none of them.
 ###############################################################################
 
 poc_replicas             = 1              # the broker (worker-poc); it runs no PoC
 poc_max_runners          = 10             # PoC executions of the installation at once
 poc_task_timeout_seconds = 600            # one execution: the PoC (60 s), its start, its result
-poc_subnet_cidr          = "10.20.8.0/26" # free in the VPC, /26 or larger, apart from subnet_cidr and psa_cidr
-poc_denied_ranges        = []             # more ranges the runner may not reach (management networks, say)
+poc_network              = "own"          # "shared": a subnet of the installation's VPC behind a firewall rule
+poc_subnet_cidr          = "10.20.8.0/26" # /26 or larger; with "shared" free in the VPC, apart from subnet_cidr and psa_cidr
+poc_denied_ranges        = []             # public ranges the runner may not reach (private ones are closed already)
 # One team runs at most 3 PoCs at once: extra_env POC_MAX_RUNNERS_PER_TEAM = "3".
 
 ###############################################################################

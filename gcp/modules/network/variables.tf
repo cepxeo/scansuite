@@ -10,14 +10,25 @@ variable "psa_cidr" {
   default     = "10.30.0.0/16"
 }
 
+variable "poc_network" {
+  description = "\"own\": the PoC runner job in a VPC of its own (internet through its own NAT, or Google APIs only with egress_mode = \"none\"). \"shared\": its subnet in this VPC behind a firewall rule."
+  type        = string
+  default     = "own"
+
+  validation {
+    condition     = contains(["own", "shared"], var.poc_network)
+    error_message = "poc_network is \"own\" or \"shared\"."
+  }
+}
+
 variable "poc_subnet_cidr" {
-  description = "Subnet of the PoC runner job (Direct VPC egress: a /26 or larger). It must not overlap subnet_cidr or psa_cidr."
+  description = "Subnet of the PoC runner job (Direct VPC egress: a /26 or larger). With poc_network = \"shared\" it must not overlap subnet_cidr or psa_cidr."
   type        = string
   default     = "10.20.8.0/26"
 }
 
 variable "poc_denied_ranges" {
-  description = "Ranges the PoC runner may not reach besides the installation's own subnet and the PSA range (Cloud SQL, Memorystore)."
+  description = "Further ranges the PoC runner may not reach: public ones with poc_network = \"own\" (private ones are closed already), corporate ones with \"shared\"."
   type        = list(string)
   default     = []
 }
