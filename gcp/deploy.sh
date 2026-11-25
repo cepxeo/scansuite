@@ -59,7 +59,7 @@ tf_var() { terraform console -input=false <<<"$1" 2>/dev/null | tr -d '"\r'; }
 PROJECT="$(tf_var var.project_id)"
 REGION="$(tf_var var.region)"
 TAG="$(tf_var var.image_tag)"
-OVERRIDES="$(tf_var 'var.image_web != "" && var.image_worker != "" && var.image_poc_runner != ""')"
+OVERRIDES="$(tf_var 'var.image_web != "" && var.image_worker != "" && (var.image_poc_runner != "" || var.image_worker_poc != "")')"
 SOURCE="$(tf_var var.source_registry)"
 INTERNAL="$(tf_var var.internal_only)"
 [[ -n "${PROJECT}" ]] || die "could not read project_id"
@@ -137,7 +137,7 @@ copy_from_source() { # copy_from_source <destination repository>
       skopeo login --username oauth2accesstoken --password-stdin "${destination_host}" >/dev/null ||
       die "could not sign in to ${destination_host}"
     for image in "${IMAGE_NAMES[@]}"; do
-      name="$(tf_var "lookup(var.source_image_names, \"${image}\", \"${image}\")")"
+      name="$(tf_var "lookup(local.source_image_names, \"${image}\", \"${image}\")")"
       skopeo copy --all "docker://${SOURCE}/${name}:${TAG}" "docker://${destination}/${image}:${TAG}" >/dev/null ||
         { skopeo logout "${source_host}" >/dev/null 2>&1; die "could not copy ${SOURCE}/${name}:${TAG}"; }
       echo "  ${SOURCE}/${name}:${TAG} -> ${image}:${TAG}"
@@ -149,7 +149,7 @@ copy_from_source() { # copy_from_source <destination repository>
       die "could not sign in to ${source_host} as ${SOURCE_REGISTRY_USERNAME}"
     gcloud auth configure-docker "${destination_host}" --quiet >/dev/null 2>&1
     for image in "${IMAGE_NAMES[@]}"; do
-      name="$(tf_var "lookup(var.source_image_names, \"${image}\", \"${image}\")")"
+      name="$(tf_var "lookup(local.source_image_names, \"${image}\", \"${image}\")")"
       { docker pull -q "${SOURCE}/${name}:${TAG}" >/dev/null &&
         docker tag "${SOURCE}/${name}:${TAG}" "${destination}/${image}:${TAG}" &&
         docker push -q "${destination}/${image}:${TAG}" >/dev/null; } ||

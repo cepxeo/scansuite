@@ -89,6 +89,23 @@ source_registry = "<quay.example.internal/organisation>"
 # }
 
 ###############################################################################
+# PoC runs
+#
+# Each PoC runs as one execution of the <prefix>-poc job: the ai-poc-runner
+# image (copied from source_registry with the others), an identity with no
+# roles, no secret, and a subnet of its own whose egress rule closes Cloud SQL,
+# Memorystore and the workloads' subnet. Targets over the corporate connection
+# stay reachable. These are the defaults; an earlier terraform.tfvars needs none
+# of them.
+###############################################################################
+
+poc_replicas             = 1              # the broker (worker-poc); it runs no PoC
+poc_max_runners          = 10             # PoC executions of the installation at once
+poc_task_timeout_seconds = 600            # one execution: the PoC (60 s), its start, its result
+poc_subnet_cidr          = "10.20.8.0/26" # free in the VPC and the corporate address plan, /26 or larger
+poc_denied_ranges        = []             # corporate ranges the runner may not reach (management networks, say)
+
+###############################################################################
 # AI provider
 #
 # Without internet access the model is either Vertex AI, reached through

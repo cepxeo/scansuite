@@ -374,9 +374,15 @@ locals {
     "${local.image_repository}/${name}:${var.image_tag}")
   }
 
-  image_web            = var.image_web != "" ? var.image_web : local.derived_images["ai-web"]
-  image_worker         = var.image_worker != "" ? var.image_worker : local.derived_images["ai-worker"]
-  image_poc_runner     = var.image_poc_runner != "" ? var.image_poc_runner : local.derived_images["ai-poc-runner"]
+  image_web    = var.image_web != "" ? var.image_web : local.derived_images["ai-web"]
+  image_worker = var.image_worker != "" ? var.image_worker : local.derived_images["ai-worker"]
+  # An earlier terraform.tfvars may still name image_worker_poc: its repository
+  # and tag, under the runner's name (ai-worker-poc -> ai-poc-runner,
+  # worker-poc -> poc-runner).
+  image_poc_runner_from_old = replace(replace(var.image_worker_poc, "ai-worker-poc", "ai-poc-runner"), "worker-poc", "poc-runner")
+  image_poc_runner = (var.image_poc_runner != "" ? var.image_poc_runner :
+    var.image_worker_poc != "" ? local.image_poc_runner_from_old :
+  local.derived_images["ai-poc-runner"])
   image_worker_pentest = var.image_worker_pentest != "" ? var.image_worker_pentest : local.derived_images["ai-worker-pentest"]
 }
 
@@ -389,10 +395,22 @@ resource "terraform_data" "licence_required" {
   }
 }
 
+# The image names in source_registry (deploy.sh reads this). An earlier
+# terraform.tfvars may name the PoC executor's image there (ai-worker-poc): the
+# runner is looked up under the matching new name (worker-poc -> poc-runner).
+locals {
+  old_poc_name = lookup(var.source_image_names, "ai-worker-poc", "")
+  source_image_names = merge(
+    { for image, name in var.source_image_names : image => name if image != "ai-worker-poc" },
+    local.old_poc_name != "" && !contains(keys(var.source_image_names), "ai-poc-runner") ?
+    { ai-poc-runner = replace(replace(local.old_poc_name, "ai-worker-poc", "ai-poc-runner"), "worker-poc", "poc-runner") } : {},
+  )
+}
+
 resource "terraform_data" "image_tag_required" {
   lifecycle {
     precondition {
-      condition     = var.image_tag != "" || (var.image_web != "" && var.image_worker != "" && var.image_poc_runner != "")
+      condition     = var.image_tag != "" || (var.image_web != "" && var.image_worker != "" && (var.image_poc_runner != "" || var.image_worker_poc != ""))
       error_message = "Set image_tag to your licence code (the <code> of key/<name>_<code>.lic), or set all three image_* overrides."
     }
   }

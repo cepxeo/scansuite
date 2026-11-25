@@ -91,6 +91,23 @@ dockerhub_username = "<user sent with your licence>"
 # pentest_task_timeout_seconds = 86400
 
 ###############################################################################
+# PoC runs
+#
+# Each PoC runs as one execution of the <prefix>-poc job: the ai-poc-runner
+# image, an identity with no roles, no secret, and a subnet of its own whose
+# egress rule closes Cloud SQL, Memorystore and the workloads' subnet. worker-poc
+# only hands the PoCs over. These are the defaults; an earlier terraform.tfvars
+# needs none of them.
+###############################################################################
+
+poc_replicas             = 1              # the broker (worker-poc); it runs no PoC
+poc_max_runners          = 10             # PoC executions of the installation at once
+poc_task_timeout_seconds = 600            # one execution: the PoC (60 s), its start, its result
+poc_subnet_cidr          = "10.20.8.0/26" # free in the VPC, /26 or larger, apart from subnet_cidr and psa_cidr
+poc_denied_ranges        = []             # more ranges the runner may not reach (management networks, say)
+# One team runs at most 3 PoCs at once: extra_env POC_MAX_RUNNERS_PER_TEAM = "3".
+
+###############################################################################
 # TLS
 #
 # Without a domain the deployment still serves HTTPS, on the load balancer IP
@@ -142,7 +159,6 @@ redis_ha        = true
 # cloudsql_ha     = false
 # redis_ha        = false
 # redis_memory_gb = 1
-# poc_replicas    = 1
 
 ###############################################################################
 # Integrations - all optional

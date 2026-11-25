@@ -240,9 +240,12 @@ variable "source_image_names" {
     ai-worker-pentest = "ai-worker-pentest"
   }
 
+  # Any subset: a name left out is its canonical one, and an entry for an image
+  # that no longer exists (ai-worker-poc, before 2026-11-25) is ignored, so a
+  # terraform.tfvars written for an earlier release needs no change.
   validation {
-    condition     = alltrue([for name in ["ai-web", "ai-worker", "ai-poc-runner"] : contains(keys(var.source_image_names), name)])
-    error_message = "source_image_names needs an entry for each of ai-web, ai-worker and ai-poc-runner."
+    condition     = alltrue([for name in values(var.source_image_names) : trimspace(name) != ""])
+    error_message = "source_image_names values must not be empty."
   }
 }
 
@@ -262,6 +265,17 @@ variable "image_poc_runner" {
   description = "Full PoC runner image reference, used verbatim. Empty derives it (ai-poc-runner, same tag as the others)."
   type        = string
   default     = ""
+}
+
+variable "image_worker_poc" {
+  description = "Before 2026-11-25: the PoC executor image, which ai-poc-runner replaces. Still read so that an earlier terraform.tfvars needs no change: a tag reference (.../ai-worker-poc:<tag>) gives image_poc_runner the same repository and tag under the new name. Prefer image_poc_runner."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !strcontains(var.image_worker_poc, "@")
+    error_message = "image_worker_poc is pinned by digest, which cannot name the PoC runner image that replaces it: set image_poc_runner (\".../ai-poc-runner@sha256:...\" or \":<tag>\") instead."
+  }
 }
 
 variable "dockerhub_username" {
