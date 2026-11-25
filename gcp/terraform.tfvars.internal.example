@@ -68,7 +68,7 @@ source_registry = "<quay.example.internal/organisation>"
 # source_image_names = {
 #   ai-web        = "web"
 #   ai-worker     = "worker"
-#   ai-worker-poc = "worker-poc"
+#   ai-poc-runner = "poc-runner"
 # }
 
 ###############################################################################
@@ -82,6 +82,7 @@ source_registry = "<quay.example.internal/organisation>"
 ###############################################################################
 
 # pentest_max_runners = 20   # runners of the whole installation at once (4 vCPU, 16 GiB each)
+# pentest_safeguard_floor = "production"   # the floor below System settings -> AI Pentest safeguards
 # extra_env = {               # settings without a variable of their own (never a secret)
 #   AI_PENTEST_RUNNERS_PER_SCAN     = "4"   # runners one scan may use at once
 #   AI_PENTEST_SINGLE_SHARD_ORIGINS = "0"   # every web origin gets its own runner (default 4)

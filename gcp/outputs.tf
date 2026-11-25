@@ -65,7 +65,7 @@ output "images" {
   value = {
     web        = local.image_web
     worker     = local.image_worker
-    worker_poc = local.image_worker_poc
+    poc_runner = local.image_poc_runner
     # The AI Pentest runner.
     worker_pentest = local.image_worker_pentest
   }

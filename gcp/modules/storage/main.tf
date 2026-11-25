@@ -40,3 +40,27 @@ resource "google_storage_bucket" "artifacts" {
     }
   }
 }
+
+# The PoC exchange: the input of each PoC run and the result its runner writes
+# back, through signed URLs for those two objects (worker/execution/
+# poc_backends.py). The broker deletes both after the run; the lifecycle rule is
+# the backstop. No versioning: nothing here is worth keeping.
+resource "google_storage_bucket" "poc_exchange" {
+  project  = var.project_id
+  name     = "${var.prefix}-poc-exchange-${var.project_id}"
+  location = var.region
+  labels   = var.labels
+
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = true
+
+  lifecycle_rule {
+    condition {
+      age = 1
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}

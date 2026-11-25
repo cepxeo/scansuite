@@ -21,23 +21,19 @@ locals {
   # so in words instead of an indexing error.
   licence_b64 = local.pyarmor_licence == null ? "" : lookup(local.key_files, local.pyarmor_licence, "")
 
-  # Operational secrets, readable by the full-trust workloads AND worker-poc
-  # (which needs the database and broker). Mapped env var -> secret id.
+  # Operational secrets, readable by the full-trust workloads (worker-poc, the
+  # PoC broker, included: it runs no PoC). Mapped env var -> secret id.
   # One database account: every workload connects as the schema owner; team
-  # isolation is the application's job, not a second database role's.
-  # flask-secret-key is the exception: worker-poc may not read it (module.secrets,
-  # accessor_exclusions).
+  # isolation is the application's job, not a second database role's. The PoC
+  # runner job's identity reads none of these, nor any other secret.
   operational_secret_sources = {
     PS_DATABASE_PASSWORD = "db-password"
     REDIS_PASSWORD       = "redis-auth"
     SECRET_KEY           = "flask-secret-key"
   }
 
-  # The /key material and the secret wrapping keys. Kept in a separate secret
-  # set whose only accessor is the app service account, so the worker-poc
-  # identity - which runs model-written code - cannot read the licence, the LLM
-  # key or the keys that decrypt team and platform secrets, even via its
-  # metadata token.
+  # The /key material and the secret wrapping keys, in a separate secret set
+  # readable by the app and migrate identities only.
   # The out-of-band LLM key is wired into the workloads only when one is
   # expected: Cloud Run refuses a revision whose secret has no version, and
   # without the key the application uses the workload's own identity anyway.
@@ -48,8 +44,8 @@ locals {
     local.llm_key_expected ? { GCP_KEY_JSON_B64 = "llm-sa-key-b64" } : {},
   )
 
-  # The PyArmor licence, on its own: every image is protected and starts only
-  # with it - worker-poc's included - so its readers are the three identities.
+  # The PyArmor licence, on its own: every protected image starts only with it.
+  # The PoC runner image holds no protected code and does not need it.
   licence_secret_sources = {
     PYARMOR_LICENSE_B64 = "pyarmor-license-b64"
   }
@@ -65,14 +61,6 @@ locals {
     for name, secret in merge(local.operational_secret_sources, local.key_secret_sources, local.licence_secret_sources) :
     name => local.all_secret_ids[secret]
     if contains(keys(local.all_secret_ids), secret)
-  }
-
-  # worker-poc runs model-written code: database, broker and the licence its
-  # protected image needs - never SECRET_KEY, the wrapping keys or the LLM key.
-  secret_env_poc = {
-    for name in ["PS_DATABASE_PASSWORD", "REDIS_PASSWORD", "PYARMOR_LICENSE_B64"] :
-    name => local.all_secret_ids[merge(local.operational_secret_sources, local.licence_secret_sources)[name]]
-    if contains(keys(local.all_secret_ids), merge(local.operational_secret_sources, local.licence_secret_sources)[name])
   }
 
   labels = {
@@ -106,6 +94,9 @@ module "network" {
   subnet_cidr  = var.subnet_cidr
   nat_ip_count = var.nat_ip_count
   psa_cidr     = var.psa_cidr
+
+  poc_subnet_cidr   = var.poc_subnet_cidr
+  poc_denied_ranges = var.poc_denied_ranges
 
   egress_mode            = var.egress_mode
   google_apis_vip        = var.google_apis_vip
@@ -230,9 +221,28 @@ locals {
     # internal_only: there is no load balancer to set it.
     CLIENT_IP_HEADER = var.internal_only ? "" : "X-Real-IP"
 
+    # internal_only: browsers reach the run.app address directly, and Cloud
+    # Run appends the caller's address to X-Forwarded-For, so the last entry
+    # is the client (anything a client sent comes before it). Unset, every
+    # signed-out user and every pipeline counted as the one Cloud Run front
+    # end: one script on the sign-in page locked the whole company out. With
+    # the load balancer, X-Real-IP above answers instead and no hop is trusted.
+    # The web log names the address of each sign-in ("logged in from"), which
+    # shows what the limiter counts.
+    TRUSTED_PROXY_HOPS = var.internal_only ? "1" : "0"
+
+    # No front door here names the user (the corporate deployment's IAP does);
+    # set empty so extra_env cannot make the limiter trust a header a client
+    # writes itself.
+    CLIENT_IDENTITY_HEADER = ""
+
     # AI Pentest runs in its own runner job. GCP blocks outbound TCP 25 for
     # every project.
     AI_PENTEST_EGRESS_BLOCKED_PORTS = "25"
+
+    # The floor below the AI Pentest safeguards set in System settings
+    # (configuration/pentest_safeguards.py); empty: none.
+    AI_PENTEST_SAFEGUARD_FLOOR = var.pentest_safeguard_floor
 
     TZ = var.timezone
   }
@@ -244,6 +254,7 @@ locals {
   reserved_env = setunion(keys(local.managed_config), keys(merge(local.operational_secret_sources, local.key_secret_sources, local.licence_secret_sources)), [
     "EXECUTION_BACKEND", "CLOUDRUN_PROJECT", "CLOUDRUN_REGION", "CLOUDRUN_JOB_NAME", "CLOUDRUN_PENTEST_JOB_NAME",
     "AI_PENTEST_MAX_RUNNERS", "SCANSUITE_DB_POOL_SIZE", "SCANSUITE_DB_MAX_OVERFLOW", "PYARMOR_RKEY", "SCAN_ID", "PORT",
+    "POC_BACKEND", "CLOUDRUN_POC_JOB_NAME", "POC_EXCHANGE_BUCKET", "POC_MAX_RUNNERS", "POC_INPUT_URL", "POC_OUTPUT_URL",
   ])
 }
 
@@ -254,9 +265,10 @@ locals {
 module "iam" {
   source = "./modules/iam"
 
-  project_id      = var.project_id
-  prefix          = local.prefix
-  artifact_bucket = module.storage.artifact_bucket_name
+  project_id          = var.project_id
+  prefix              = local.prefix
+  artifact_bucket     = module.storage.artifact_bucket_name
+  poc_exchange_bucket = module.storage.poc_exchange_bucket_name
 
   llm_service_account_email = var.llm_service_account_email
 
@@ -271,12 +283,11 @@ module "artifact_registry" {
   prefix     = local.prefix
   labels     = local.labels
 
-  # The app/poc identities read images; the Cloud Run Service Agent is what
-  # actually pulls, so it needs reader too - locked-down orgs do not always
-  # auto-grant it.
+  # The app identity reads images; the Cloud Run Service Agent is what actually
+  # pulls, so it needs reader too - locked-down orgs do not always auto-grant
+  # it. Not the poc identity: it holds no role at all.
   reader_members = [
     "serviceAccount:${module.iam.app_service_account_email}",
-    "serviceAccount:${module.iam.poc_service_account_email}",
     "serviceAccount:service-${data.google_project.this.number}@serverless-robot-prod.iam.gserviceaccount.com",
   ]
 
@@ -357,7 +368,7 @@ locals {
   "${module.artifact_registry.remote_repository_url}/${var.image_source}")
 
   derived_images = {
-    for name in ["ai-web", "ai-worker", "ai-worker-poc", "ai-worker-pentest"] :
+    for name in ["ai-web", "ai-worker", "ai-poc-runner", "ai-worker-pentest"] :
     name => (contains(keys(var.image_digests), name) ?
       "${local.image_repository}/${name}@${var.image_digests[name]}" :
     "${local.image_repository}/${name}:${var.image_tag}")
@@ -365,7 +376,7 @@ locals {
 
   image_web            = var.image_web != "" ? var.image_web : local.derived_images["ai-web"]
   image_worker         = var.image_worker != "" ? var.image_worker : local.derived_images["ai-worker"]
-  image_worker_poc     = var.image_worker_poc != "" ? var.image_worker_poc : local.derived_images["ai-worker-poc"]
+  image_poc_runner     = var.image_poc_runner != "" ? var.image_poc_runner : local.derived_images["ai-poc-runner"]
   image_worker_pentest = var.image_worker_pentest != "" ? var.image_worker_pentest : local.derived_images["ai-worker-pentest"]
 }
 
@@ -381,7 +392,7 @@ resource "terraform_data" "licence_required" {
 resource "terraform_data" "image_tag_required" {
   lifecycle {
     precondition {
-      condition     = var.image_tag != "" || (var.image_web != "" && var.image_worker != "" && var.image_worker_poc != "")
+      condition     = var.image_tag != "" || (var.image_web != "" && var.image_worker != "" && var.image_poc_runner != "")
       error_message = "Set image_tag to your licence code (the <code> of key/<name>_<code>.lic), or set all three image_* overrides."
     }
   }
@@ -391,8 +402,8 @@ resource "terraform_data" "image_tag_required" {
 # 5. Secret Manager - the canonical, auditable copy of every credential
 ###############################################################################
 
-# Operational secrets. Both service accounts can read these - worker-poc needs
-# the database and broker.
+# Operational secrets, for the app and migrate identities. The poc identity
+# (the PoC runner job) reads no secret.
 module "secrets" {
   source = "./modules/secrets"
 
@@ -402,7 +413,6 @@ module "secrets" {
 
   accessor_members = [
     "serviceAccount:${module.iam.app_service_account_email}",
-    "serviceAccount:${module.iam.poc_service_account_email}",
     "serviceAccount:${module.iam.migrate_service_account_email}",
   ]
 
@@ -410,14 +420,6 @@ module "secrets" {
     db-password      = random_password.db.result
     redis-auth       = module.memorystore.auth_string
     flask-secret-key = random_password.flask_secret_key.result
-  }
-
-  # The Flask session key signs every session, and worker-poc never needs it:
-  # its metadata token must not read it. (Excluded here rather than moved to
-  # key_secrets: a move would destroy the app and migrate grants while creating
-  # equal ones, and whichever ran last decided whether they kept access.)
-  accessor_exclusions = {
-    flask-secret-key = ["serviceAccount:${module.iam.poc_service_account_email}"]
   }
 
   depends_on = [module.project_services]
@@ -437,9 +439,8 @@ moved {
   to   = module.secrets.google_secret_manager_secret_version.this["db-password"]
 }
 
-# The /key material, injected as base64 env at container start. Only the app
-# service account can read these, so the model-code sandbox (worker-poc) cannot
-# reach the licence or the LLM key even with its own metadata token.
+# The /key material, injected as base64 env at container start, readable by the
+# app and migrate identities only.
 #
 #   pyarmor-license-b64  the outer licence from the local key directory.
 #   llm-sa-key-b64       the existing llm-scansuit key JSON. Supplied out of
@@ -469,8 +470,8 @@ module "key_secrets" {
   depends_on = [module.project_services]
 }
 
-# The licence opens the protected code and nothing else, so worker-poc may read
-# it; its image does not start without it.
+# The licence opens the protected code and nothing else. Its own set, so that
+# moving it between sets never touches the operational grants.
 module "licence_secrets" {
   source = "./modules/secrets"
 
@@ -481,7 +482,6 @@ module "licence_secrets" {
   accessor_members = [
     "serviceAccount:${module.iam.app_service_account_email}",
     "serviceAccount:${module.iam.migrate_service_account_email}",
-    "serviceAccount:${module.iam.poc_service_account_email}",
   ]
 
   values = {
@@ -513,8 +513,9 @@ module "cloudrun" {
   prefix     = local.prefix
   labels     = local.labels
 
-  network_name = module.network.network_name
-  subnet_name  = module.network.subnet_name
+  network_name    = module.network.network_name
+  subnet_name     = module.network.subnet_name
+  poc_subnet_name = module.network.poc_subnet_name
 
   app_service_account_email     = module.iam.app_service_account_email
   poc_service_account_email     = module.iam.poc_service_account_email
@@ -522,16 +523,20 @@ module "cloudrun" {
 
   image_web            = local.image_web
   image_worker         = local.image_worker
-  image_worker_poc     = local.image_worker_poc
+  image_poc_runner     = local.image_poc_runner
   image_worker_pentest = local.image_worker_pentest
 
-  config         = local.app_config
-  secret_env     = local.secret_env
-  secret_env_poc = local.secret_env_poc
+  config     = local.app_config
+  secret_env = local.secret_env
+
+  poc_exchange_bucket      = module.storage.poc_exchange_bucket_name
+  poc_task_timeout_seconds = var.poc_task_timeout_seconds
+  poc_max_runners          = var.poc_max_runners
 
   internal_only = var.internal_only
 
   admin_instances              = var.admin_instances
+  admin_memory                 = var.admin_memory
   poc_instances                = var.poc_replicas
   web_min_instances            = var.web_min_instances
   web_max_instances            = var.web_max_instances
@@ -601,5 +606,29 @@ resource "terraform_data" "extra_env" {
       condition     = length(setintersection(keys(var.extra_env), local.reserved_env)) == 0
       error_message = "extra_env (${join(", ", sort(keys(var.extra_env)))}) names a variable the deployment sets itself: one of its settings or secrets, or EXECUTION_BACKEND, CLOUDRUN_*, AI_PENTEST_MAX_RUNNERS, SCANSUITE_DB_*, PYARMOR_RKEY, SCAN_ID, PORT. Use the deployment's own variable for it (e.g. pentest_max_runners)."
     }
+  }
+}
+
+# The AI Pentest safeguards are System settings (Security -> AI Pentest
+# safeguards), resolved with each team's into every scan's snapshot. The
+# variables an older package set them with are read only until that page is
+# saved, and ignored after: a reminder to remove them.
+locals {
+  legacy_safeguard_env = [
+    "SCANSUITE_PENTEST_AGENT_SAFE_DEFAULTS", "SCANSUITE_PENTEST_AGENT_SAFE_DEFAULT_RPS",
+    "SCANSUITE_PENTEST_AGENT_CONTACT", "SCANSUITE_PENTEST_AGENT_RUN_WINDOW", "SCANSUITE_PENTEST_AGENT_RUN_WINDOW_TZ",
+    "SCANSUITE_PENTEST_AGENT_REFUSAL_PAUSE_COUNT", "SCANSUITE_PENTEST_AGENT_REFUSAL_PAUSE_WINDOW_SEC",
+    "SCANSUITE_PENTEST_AGENT_JUDGE_NEW_HOSTS", "SCANSUITE_PENTEST_AGENT_ALLOW_THIRD_PARTY_HOSTS",
+    "SCANSUITE_PENTEST_AGENT_WATCH_LOGS", "SCANSUITE_PENTEST_AGENT_WATCH_PAUSE",
+    "SCANSUITE_PENTEST_AGENT_VERIFY_FINDINGS", "SCANSUITE_PENTEST_AGENT_VERIFY_MEDIUM",
+    "AI_PENTEST_HOST_RPS", "AI_PENTEST_MAX_ADDRESSES",
+  ]
+  legacy_safeguards_set = sort(setintersection(keys(var.extra_env), local.legacy_safeguard_env))
+}
+
+check "pentest_safeguards_in_settings" {
+  assert {
+    condition     = length(local.legacy_safeguards_set) == 0
+    error_message = "extra_env sets AI Pentest safeguards (${join(", ", local.legacy_safeguards_set)}). They are read only until System settings -> Security -> AI Pentest safeguards is saved, and ignored after. Save that page (it shows these values until then), then remove them from extra_env."
   }
 }

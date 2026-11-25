@@ -10,6 +10,18 @@ variable "psa_cidr" {
   default     = "10.30.0.0/16"
 }
 
+variable "poc_subnet_cidr" {
+  description = "Subnet of the PoC runner job (Direct VPC egress: a /26 or larger). It must not overlap subnet_cidr or psa_cidr."
+  type        = string
+  default     = "10.20.8.0/26"
+}
+
+variable "poc_denied_ranges" {
+  description = "Ranges the PoC runner may not reach besides the installation's own subnet and the PSA range (Cloud SQL, Memorystore)."
+  type        = list(string)
+  default     = []
+}
+
 variable "egress_mode" {
   description = "\"nat\": Cloud NAT on reserved external addresses. \"none\": no internet route, Google APIs through Private Google Access."
   type        = string

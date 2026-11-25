@@ -1,16 +1,26 @@
-# Runs generated verification PoCs: no Docker socket, read-only, only the
-# capabilities that start a PoC as another user.  Its image is built from the protected code too; the licence is
-# mounted read-only because the container cannot write /key.
+# PoC verification: a broker that holds the credentials and runs no PoC, and a
+# runner that runs PoCs and holds nothing (SR-01).
+#
+#   worker_poc   the ai-worker image on the poc queue (work_poc.py), like the
+#                other workers. It hands each PoC to poc_runner over the
+#                internal poc_control network and waits for the result.
+#   poc_runner   the ai-poc-runner image: runner.py and the PoC libraries, no
+#                ScanSuite code, no licence, no database or Redis address or
+#                password. Each PoC runs as a uid of its own under rlimits.
+#                It is on poc_control (to the broker only) and poc_egress (to
+#                the targets), never on the default network with Postgres,
+#                Redis and SeaweedFS. The installer's firewall rules
+#                (bin/lib/firewall.sh) close the host and the cloud metadata
+#                address to poc_egress.
 #
 # Enabled by FEATURE_POC_WORKER in the product manifest; the installer adds this
 # file to COMPOSE_FILE in .env.  Where the product also has a migration job,
-# poc-migrate.yml makes this service wait for it -- it must not start before the
-# schema exists and the installation's secrets have been written.
+# poc-migrate.yml makes the broker wait for it.
 
 services:
 
   worker_poc:
-    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_POC:-ai-worker-poc}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_WORKER:-ai-worker}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
     # The same cap as the services in docker-compose.yml (anchors do not
     # reach across compose files).
     logging:
@@ -20,11 +30,41 @@ services:
         max-file: "3"
     # As the workers in docker-compose.yml: a crashed one comes back on its own.
     restart: unless-stopped
-    command: python /app/work_poc.py
+    command: ["python", "work_poc.py"]
+    volumes:
+      - ./key:/key:ro
+    env_file:
+      - .env
+    environment:
+      POC_BACKEND: http
+      POC_RUNNER_URL: http://poc_runner:8080
+      # PoCs in flight at once: the runner's slots.
+      POC_BROKER_CONCURRENCY: ${POC_RUNNER_SLOTS:-2}
+    networks:
+      - default
+      - poc_control
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      poc_runner:
+        condition: service_started
+
+  poc_runner:
+    image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_POC_RUNNER:-ai-poc-runner}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    restart: unless-stopped
+    command: ["python", "/runner/runner.py", "serve"]
+    # gVisor (runsc) when the host has it: POC_RUNTIME=runsc in .env.
+    runtime: ${POC_RUNTIME:-runc}
     read_only: true
-    # The image runs as root so each PoC starts as uid 10002 (setpriv), which
-    # cannot read the passwords below from /proc: SETUID and SETGID for that,
-    # KILL to end a PoC that runs out of time.
+    # Root, to start each PoC as a uid of its own (setpriv): SETUID and SETGID
+    # for that, KILL to end a PoC that runs out of time. Nothing else.
     cap_drop:
       - ALL
     cap_add:
@@ -33,27 +73,31 @@ services:
       - KILL
     security_opt:
       - no-new-privileges:true
-    pids_limit: 64
-    mem_limit: 768m
-    cpus: 1
+    pids_limit: 128
+    mem_limit: 1536m
+    cpus: 2
     init: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=64m
-    volumes:
-      - ./key:/key:ro
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+    # The only setting it gets: the token the broker presents. No env_file.
     environment:
-      PS_DATABASE_HOST: ${PS_DATABASE_HOST:-postgres}
-      PS_DATABASE_NAME: ${PS_DATABASE_NAME:-scansuite}
-      PS_DATABASE_PASSWORD: ${PS_DATABASE_PASSWORD:-}
-      PS_DATABASE_PORT: ${PS_DATABASE_PORT:-5432}
-      PS_DATABASE_USER: ${PS_DATABASE_USER:-scansuite}
-      CELERY_HOST: ${CELERY_HOST:-redis}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      # The same clock as the other workers: Celery compares their timestamps
-      # and warns of drift when one of them runs in UTC.
+      POC_RUNNER_TOKEN: ${POC_RUNNER_TOKEN:?run ./scansuite start to generate POC_RUNNER_TOKEN}
+      POC_RUNNER_SLOTS: ${POC_RUNNER_SLOTS:-2}
       TZ: ${TZ:-Europe/Moscow}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    networks:
+      - poc_control
+      - poc_egress
+
+networks:
+  # The broker and the runner, and nothing else; no way out.
+  poc_control:
+    internal: true
+  # The runner's way to the targets. A fixed subnet, so the installer's
+  # firewall rules can name it.
+  poc_egress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: ssai-poc0
+    ipam:
+      config:
+        - subnet: ${POC_EGRESS_SUBNET:-172.30.250.0/24}

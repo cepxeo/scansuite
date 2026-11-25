@@ -7,6 +7,17 @@ output "network_name" {
 output "subnet_name" {
   value = google_compute_subnetwork.nodes.name
 }
+output "poc_subnet_name" {
+  value = google_compute_subnetwork.poc.name
+}
+output "poc_runner_denied" {
+  description = "The PoC runner's egress deny rule: the tags it applies to and the ranges it closes."
+  value = {
+    target_tags        = google_compute_firewall.poc_runner_deny.target_tags
+    destination_ranges = google_compute_firewall.poc_runner_deny.destination_ranges
+    direction          = google_compute_firewall.poc_runner_deny.direction
+  }
+}
 output "nat_ip_addresses" {
   description = "Empty with egress_mode = \"none\"."
   value       = google_compute_address.nat[*].address

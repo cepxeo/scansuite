@@ -1,13 +1,12 @@
-# The PoC worker waits for the migration job, in a product that has both.
+# The PoC broker waits for the migration job, in a product that has both.
 #
 # The two features are separate fragments, so neither can carry a dependency on
 # the other: this third one exists only when FEATURE_POC_WORKER and
 # FEATURE_MIGRATE are both on, and the installer adds it to COMPOSE_FILE after
 # the other two.
 #
-# Without it the PoC worker starts alongside the migration job and dies: the
-# schema is not there yet, and the installation's secrets have not been written
-# to key/scansuite-secrets.env, which this container is not allowed to create.
+# Without it the broker starts alongside the migration job and dies: the
+# schema is not there yet (work_poc.py refuses a database that is not current).
 
 services:
 

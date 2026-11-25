@@ -15,7 +15,31 @@ variable "migrate_service_account_email" {
 
 variable "image_web" { type = string }
 variable "image_worker" { type = string }
-variable "image_worker_poc" { type = string }
+variable "image_poc_runner" {
+  description = "The PoC runner image (ai-poc-runner): runner.py and the PoC libraries, no ScanSuite code."
+  type        = string
+}
+
+variable "poc_subnet_name" {
+  description = "The PoC runner job's subnet, whose egress rules close the installation's own ranges."
+  type        = string
+}
+
+variable "poc_exchange_bucket" {
+  description = "Bucket the broker hands each PoC's input and result through (signed URLs)."
+  type        = string
+}
+
+variable "poc_task_timeout_seconds" {
+  type    = number
+  default = 600
+}
+
+variable "poc_max_runners" {
+  description = "PoC runner executions of the installation at once."
+  type        = number
+  default     = 10
+}
 
 variable "config" {
   description = "Non-secret environment, shared by every workload. Includes PYARMOR_RKEY and PYARMOR_LICENSE_FILENAME."
@@ -27,19 +51,20 @@ variable "secret_env" {
   type        = map(string)
 }
 
-variable "secret_env_poc" {
-  description = "Reduced secret env for worker-poc, which runs model-written code: database and broker only, never the licence or LLM key."
-  type        = map(string)
-}
-
 variable "admin_instances" {
   description = "Instances consuming the admin queue. One is enough: these tasks are short orchestration steps."
   type        = number
   default     = 1
 }
 
+variable "admin_memory" {
+  description = "Memory of each admin worker instance; it loads the exploitable-CVE feed (see the root variable)."
+  type        = string
+  default     = "4Gi"
+}
+
 variable "poc_instances" {
-  description = "Instances consuming the poc queue."
+  description = "Instances of the PoC broker on the poc queue (it runs no PoC)."
   type        = number
   default     = 1
 }

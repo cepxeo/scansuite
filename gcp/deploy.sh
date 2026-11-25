@@ -33,7 +33,7 @@ cd "$(dirname "$0")"
 log() { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
 die() { printf '\n\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
-IMAGE_NAMES=(ai-web ai-worker ai-worker-poc)
+IMAGE_NAMES=(ai-web ai-worker ai-poc-runner)
 
 command -v terraform >/dev/null 2>&1 || die "terraform is not installed (https://developer.hashicorp.com/terraform/downloads)"
 command -v gcloud >/dev/null 2>&1 || die "gcloud is not installed (https://cloud.google.com/sdk/docs/install)"
@@ -59,7 +59,7 @@ tf_var() { terraform console -input=false <<<"$1" 2>/dev/null | tr -d '"\r'; }
 PROJECT="$(tf_var var.project_id)"
 REGION="$(tf_var var.region)"
 TAG="$(tf_var var.image_tag)"
-OVERRIDES="$(tf_var 'var.image_web != "" && var.image_worker != "" && var.image_worker_poc != ""')"
+OVERRIDES="$(tf_var 'var.image_web != "" && var.image_worker != "" && var.image_poc_runner != ""')"
 SOURCE="$(tf_var var.source_registry)"
 INTERNAL="$(tf_var var.internal_only)"
 [[ -n "${PROJECT}" ]] || die "could not read project_id"
@@ -213,7 +213,7 @@ log "Phase 2 - database, broker, secrets and the migrate job"
 terraform apply -input=false -auto-approve -target='module.cloudrun.google_cloud_run_v2_job.migrate' "$@"
 
 MIGRATE_JOB="$(tf_var var.name_prefix)-migrate"
-tf_var 'jsonencode({ web = local.image_web, worker = local.image_worker, worker_poc = local.image_worker_poc })' \
+tf_var 'jsonencode({ web = local.image_web, worker = local.image_worker })' \
   > images.current.json
 if [[ "${MIGRATE:-}" != "1" && -f images.migrated.json ]] && cmp -s images.current.json images.migrated.json; then
   log "Images unchanged since their last migration: skipping it, so scans in flight keep running"

@@ -65,7 +65,7 @@ dockerhub_username = "<user sent with your licence>"
 # given, no digest pinning or remote repository):
 # image_web        = "registry.example.internal/scansuite/ai-web:<code>"
 # image_worker     = "registry.example.internal/scansuite/ai-worker:<code>"
-# image_worker_poc = "registry.example.internal/scansuite/ai-worker-poc:<code>"
+# image_poc_runner = "registry.example.internal/scansuite/ai-poc-runner:<code>"
 
 ###############################################################################
 # AI Pentest
@@ -76,6 +76,7 @@ dockerhub_username = "<user sent with your licence>"
 ###############################################################################
 
 # pentest_max_runners          = 20       # runners of the whole installation at once
+# pentest_safeguard_floor = "production"   # the floor below System settings -> AI Pentest safeguards
 # Settings without a variable of their own, for every service and job (never a secret):
 # extra_env = {
 #   AI_PENTEST_RUNNERS_PER_SCAN     = "4"   # runners one scan may use at once

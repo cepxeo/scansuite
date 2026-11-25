@@ -33,6 +33,7 @@ tear it down.
 ./scansuite restart
 ./scansuite update              # fetch the current release and apply it
 ./scansuite reset db            # empty the database and start over
+./scansuite recover <user>      # nobody can administer: make <user> an installation admin, with a one-use password link
 ./scansuite --backup-db         # the database into a zip (see Backing up and restoring)
 ./scansuite --backup-secrets    # .env and key/ into a password-protected zip
 ./scansuite uninstall           # stop and remove the boot service

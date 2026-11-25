@@ -20,7 +20,8 @@ To install ScanSuite AI on your own Linux server instead, use `../README.md`.
      web            the user interface and API
      worker-admin   housekeeping, schedules, recovery of interrupted scans
      celery-beat    the scheduler
-     worker-poc     sandbox for AI proof-of-concept checks
+     worker-poc     hands each AI proof-of-concept check to the poc job
+     poc job        one execution per PoC: no roles, no secrets, its own subnet
      scan job       one execution per AI SAST scan, 4 vCPU / 16 GiB, gone when the scan ends
      pentest job    one execution per AI Pentest scan, a task per runner
      migrate job    database schema updates, run by deploy.sh
@@ -309,7 +310,7 @@ It prints the four lines to add to `terraform.tfvars`:
 ```hcl
 image_web        = "europe-west3-docker.pkg.dev/acme-scansuite/scansuite/ai-web:a1b2c3"
 image_worker     = "europe-west3-docker.pkg.dev/acme-scansuite/scansuite/ai-worker:a1b2c3"
-image_worker_poc = "europe-west3-docker.pkg.dev/acme-scansuite/scansuite/ai-worker-poc:a1b2c3"
+image_poc_runner = "europe-west3-docker.pkg.dev/acme-scansuite/scansuite/ai-poc-runner:a1b2c3"
 image_worker_pentest = "europe-west3-docker.pkg.dev/acme-scansuite/scansuite/ai-worker-pentest:a1b2c3"
 ```
 

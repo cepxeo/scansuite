@@ -62,6 +62,27 @@ resource "google_compute_subnetwork" "nodes" {
   }
 }
 
+# The PoC runner job's own subnet. It runs PoC code (services/poc-runner), so it
+# reaches the targets through the same NAT or corporate connection as the rest,
+# but nothing of the installation: see the poc_runner_deny rule below.
+resource "google_compute_subnetwork" "poc" {
+  project       = var.project_id
+  name          = "${var.prefix}-poc-subnet"
+  region        = var.region
+  network       = google_compute_network.vpc.id
+  ip_cidr_range = var.poc_subnet_cidr
+
+  # The runner reads its input and writes its result through signed Cloud
+  # Storage URLs, also with egress_mode = "none".
+  private_ip_google_access = true
+
+  log_config {
+    aggregation_interval = "INTERVAL_10_MIN"
+    flow_sampling        = 0.5
+    metadata             = "INCLUDE_ALL_METADATA"
+  }
+}
+
 ###############################################################################
 # Private Service Access - Cloud SQL and Memorystore live in this range
 ###############################################################################
@@ -278,6 +299,25 @@ resource "google_compute_firewall" "internal" {
   allow { protocol = "tcp" }
   allow { protocol = "udp" }
   allow { protocol = "icmp" }
+}
+
+# The PoC runner (network tag poc-runner) reaches the targets and nothing of the
+# installation: not Cloud SQL or Memorystore (the PSA range), not the
+# workloads' subnet, not the ranges listed in poc_denied_ranges. Targets in
+# other private ranges stay reachable: internal installations test those over
+# the corporate connection. The metadata server is not routed through the VPC;
+# the runner's identity having no roles is what closes it.
+resource "google_compute_firewall" "poc_runner_deny" {
+  project   = var.project_id
+  name      = "${var.prefix}-poc-runner-deny"
+  network   = google_compute_network.vpc.name
+  direction = "EGRESS"
+  priority  = 100
+
+  target_tags        = ["poc-runner"]
+  destination_ranges = concat([var.psa_cidr, var.subnet_cidr], var.poc_denied_ranges)
+
+  deny { protocol = "all" }
 }
 
 # Deliberately NOT added here: an egress deny that stops the workers reaching

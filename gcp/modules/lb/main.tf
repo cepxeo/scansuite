@@ -80,6 +80,11 @@ resource "google_compute_backend_service" "web" {
 # The WAF rules start in preview so a bad signature cannot lock everyone out of
 # a freshly deployed system. Watch the preview verdicts in Cloud Logging, then
 # flip preview to false.
+#
+# Order matters: Cloud Armor stops at the first rule that matches, and a
+# throttle or rate-based-ban rule that a request conforms to allows it. The WAF
+# rules therefore come first (500-520); behind the throttle (1000) they were
+# never evaluated, in preview or not.
 ###############################################################################
 
 resource "google_compute_security_policy" "this" {
@@ -99,6 +104,41 @@ resource "google_compute_security_policy" "this" {
     match {
       expr {
         expression = "request.path == '/log_in' && request.headers['x-scansuite-uptime'] == '${var.uptime_token}'"
+      }
+    }
+  }
+
+  # Password guessing, stopped at the edge: posts to the sign-in, setup and
+  # set-password pages, past the application's own 30 a minute per address,
+  # ban the address for five minutes, before they reach Cloud Run. Only for an
+  # installation open to the internet: this rule allows what conforms, and
+  # with web_allowed_cidrs it would admit addresses outside the list (a rule
+  # holds at most five subexpressions, too few to repeat the list here). The
+  # application counts wrong passwords per account either way
+  # (authentication/attempts.py).
+  dynamic "rule" {
+    for_each = length(var.web_allowed_cidrs) > 0 ? [] : [1]
+    content {
+      priority    = 950
+      action      = "rate_based_ban"
+      description = "Sign-in posts: per-IP limit, then a five-minute ban"
+
+      match {
+        expr {
+          expression = "request.method == 'POST' && (request.path == '/log_in' || request.path == '/setup' || request.path.startsWith('/password/'))"
+        }
+      }
+
+      rate_limit_options {
+        conform_action   = "allow"
+        exceed_action    = "deny(429)"
+        enforce_on_key   = "IP"
+        ban_duration_sec = 300
+
+        rate_limit_threshold {
+          count        = 30
+          interval_sec = 60
+        }
       }
     }
   }
@@ -131,7 +171,7 @@ resource "google_compute_security_policy" "this" {
   }
 
   rule {
-    priority    = 1100
+    priority    = 500
     action      = "deny(403)"
     preview     = true
     description = "OWASP SQL injection"
@@ -144,7 +184,7 @@ resource "google_compute_security_policy" "this" {
   }
 
   rule {
-    priority    = 1200
+    priority    = 510
     action      = "deny(403)"
     preview     = true
     description = "OWASP cross-site scripting"
@@ -157,7 +197,7 @@ resource "google_compute_security_policy" "this" {
   }
 
   rule {
-    priority    = 1300
+    priority    = 520
     action      = "deny(403)"
     preview     = true
     description = "OWASP local file inclusion"

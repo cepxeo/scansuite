@@ -28,7 +28,7 @@ command -v gcloud >/dev/null || { echo "gcloud is required" >&2; exit 1; }
 echo "==> Authenticating docker against ${REGION}-docker.pkg.dev"
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-for image in ai-web ai-worker ai-worker-poc ai-worker-pentest; do
+for image in ai-web ai-worker ai-poc-runner ai-worker-pentest; do
   echo "==> appsec4u/${image}:${TAG}  ->  ${REPO}/${image}:${TAG}"
   docker pull "appsec4u/${image}:${TAG}"
   docker tag "appsec4u/${image}:${TAG}" "${REPO}/${image}:${TAG}"
@@ -41,7 +41,7 @@ Mirrored into ${REPO}. Add to terraform.tfvars:
 
   image_web        = "${REPO}/ai-web:${TAG}"
   image_worker     = "${REPO}/ai-worker:${TAG}"
-  image_worker_poc = "${REPO}/ai-worker-poc:${TAG}"
+  image_poc_runner = "${REPO}/ai-poc-runner:${TAG}"
   image_worker_pentest = "${REPO}/ai-worker-pentest:${TAG}"
 
 EOF

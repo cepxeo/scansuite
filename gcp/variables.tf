@@ -112,9 +112,33 @@ variable "dns_inbound_forwarding" {
 ###############################################################################
 
 variable "poc_replicas" {
-  description = "Instances of the worker-poc pool (the poc queue)."
+  description = "Instances of the worker-poc pool: the PoC broker on the poc queue. It runs no PoC; each one is an execution of the poc job."
   type        = number
-  default     = 2
+  default     = 1
+}
+
+variable "poc_max_runners" {
+  description = "PoC runner executions of the whole installation at once; further PoCs wait for a free one."
+  type        = number
+  default     = 10
+}
+
+variable "poc_task_timeout_seconds" {
+  description = "Ceiling for one PoC runner execution: the longest PoC timeout (300 s), its start and the result upload."
+  type        = number
+  default     = 600
+}
+
+variable "poc_subnet_cidr" {
+  description = "Subnet of the PoC runner job (Direct VPC egress, a /26 or larger). It must not overlap subnet_cidr or psa_cidr."
+  type        = string
+  default     = "10.20.8.0/26"
+}
+
+variable "poc_denied_ranges" {
+  description = "Further ranges the PoC runner may not reach (it never reaches subnet_cidr or psa_cidr), e.g. corporate management networks."
+  type        = list(string)
+  default     = []
 }
 
 ###############################################################################
@@ -168,7 +192,7 @@ variable "redis_tls" {
 ###############################################################################
 
 variable "image_tag" {
-  description = "Tag of ai-web, ai-worker, ai-worker-poc and ai-worker-pentest: your licence code, the <code> of key/<name>_<code>.lic. The licence opens only the images of its own code. Required unless the image_* overrides are set."
+  description = "Tag of ai-web, ai-worker, ai-poc-runner and ai-worker-pentest: your licence code, the <code> of key/<name>_<code>.lic. The licence opens only the images of its own code. Required unless the image_* overrides are set."
   type        = string
   default     = ""
 }
@@ -186,7 +210,7 @@ variable "image_repository" {
 }
 
 variable "image_digests" {
-  description = "ai-web / ai-worker / ai-worker-poc / ai-worker-pentest -> sha256 digest. deploy.sh writes these (images.auto.tfvars.json) so a rebuild under the same tag still rolls every workload to the new image; without a digest the tag is used."
+  description = "ai-web / ai-worker / ai-poc-runner / ai-worker-pentest -> sha256 digest. deploy.sh writes these (images.auto.tfvars.json) so a rebuild under the same tag still rolls every workload to the new image; without a digest the tag is used."
   type        = map(string)
   default     = {}
 }
@@ -207,18 +231,18 @@ variable "source_registry" {
 }
 
 variable "source_image_names" {
-  description = "Image names in source_registry, when they differ from the canonical ones (ai-web, ai-worker, ai-worker-poc, ai-worker-pentest). The copies keep the canonical names. A name left out is looked up as its canonical one."
+  description = "Image names in source_registry, when they differ from the canonical ones (ai-web, ai-worker, ai-poc-runner, ai-worker-pentest). The copies keep the canonical names. A name left out is looked up as its canonical one."
   type        = map(string)
   default = {
     ai-web            = "ai-web"
     ai-worker         = "ai-worker"
-    ai-worker-poc     = "ai-worker-poc"
+    ai-poc-runner     = "ai-poc-runner"
     ai-worker-pentest = "ai-worker-pentest"
   }
 
   validation {
-    condition     = alltrue([for name in ["ai-web", "ai-worker", "ai-worker-poc"] : contains(keys(var.source_image_names), name)])
-    error_message = "source_image_names needs an entry for each of ai-web, ai-worker and ai-worker-poc."
+    condition     = alltrue([for name in ["ai-web", "ai-worker", "ai-poc-runner"] : contains(keys(var.source_image_names), name)])
+    error_message = "source_image_names needs an entry for each of ai-web, ai-worker and ai-poc-runner."
   }
 }
 
@@ -234,8 +258,8 @@ variable "image_worker" {
   default     = ""
 }
 
-variable "image_worker_poc" {
-  description = "Full PoC executor image reference, used verbatim. Empty derives it; it is built per release like the others, under the same tag."
+variable "image_poc_runner" {
+  description = "Full PoC runner image reference, used verbatim. Empty derives it (ai-poc-runner, same tag as the others)."
   type        = string
   default     = ""
 }
@@ -363,6 +387,12 @@ variable "admin_instances" {
   default     = 1
 }
 
+variable "admin_memory" {
+  description = "Memory of each admin worker instance (one CPU allows up to 4Gi). The exploitable-CVE feed load (worker/parsers/vulndb.py) needs about 1Gi with the 2026-11 feed; at 2Gi the 2026-11 build, which parsed the feed whole, was killed mid-load and left the vulns table empty."
+  type        = string
+  default     = "4Gi"
+}
+
 ###############################################################################
 # LLM / key injection
 ###############################################################################
@@ -437,10 +467,10 @@ variable "extra_env" {
   description = <<-EOT
     More environment variables for every ScanSuite service and job on Cloud Run
     (web, workers, the scan and AI Pentest jobs): settings that have no
-    Terraform variable of their own, such as the AI Pentest's sharding and agent limits
+    Terraform variable of their own, such as the AI Pentest's sharding
     (AI_PENTEST_RUNNERS_PER_SCAN, AI_PENTEST_SINGLE_SHARD_ORIGINS,
-    AI_PENTEST_SINGLE_SHARD_ADDRESSES, AI_PENTEST_HOSTS_PER_SHARD,
-    SCANSUITE_PENTEST_AGENT_MAX_PARALLEL_SUBAGENTS, ...), the largest upload
+    AI_PENTEST_SINGLE_SHARD_ADDRESSES, AI_PENTEST_HOSTS_PER_SHARD, ...; the
+    AI Pentest safeguards and run budgets are System settings), the largest upload
     (MAX_UPLOAD_MB, default 2000), Anthropic prompt caching
     (SCANSUITE_PROMPT_CACHE=0 turns it off; SCANSUITE_PROMPT_CACHE_LONG_TTL, 1h
     or 5m) and the exploitable-CVE feed between releases, all off unless set
@@ -464,4 +494,15 @@ variable "pentest_max_runners" {
   description = "AI Pentest runners of the whole installation at once: one runner is one task of the pentest job, with pentest_cpu and pentest_memory. A sharded scan uses up to AI_PENTEST_RUNNERS_PER_SCAN of them (default 4); scans beyond the cap wait for a free runner."
   type        = number
   default     = 20
+}
+
+variable "pentest_safeguard_floor" {
+  description = "A preset the AI Pentest safeguards cannot go below (AI_PENTEST_SAFEGUARD_FLOOR): standard or production. The safeguards themselves are System settings (Security -> AI Pentest safeguards); with production, no administrator can loosen them past the production profile, and a run needs a run window and a contact before it starts. Empty: no floor."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = contains(["", "standard", "production"], var.pentest_safeguard_floor)
+    error_message = "pentest_safeguard_floor is \"\", \"standard\" or \"production\"."
+  }
 }

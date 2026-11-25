@@ -4,8 +4,9 @@
 #   app  web, the workers, beat and the scan and pentest jobs. They all need Cloud SQL, the
 #        artifact bucket and Vertex AI, so splitting them would buy separation
 #        on paper only.
-#   poc  worker-poc. It executes model-generated exploit code, so it gets the
-#        database and nothing else - no bucket, no Vertex, and no /key mount.
+#   poc  the PoC runner job, which executes model-written exploit code. It gets
+#        no role at all: its metadata token opens nothing. It reads its input
+#        and writes its result through signed URLs the broker makes.
 #   migrate  the Cloud Run migration job: Cloud SQL, logs and the secrets it
 #        starts with. Every workload connects as the one database account (the
 #        schema owner) since the application dropped its restricted role; this
@@ -86,17 +87,6 @@ resource "google_project_iam_member" "app" {
   member  = "serviceAccount:${google_service_account.app.email}"
 }
 
-resource "google_project_iam_member" "poc" {
-  for_each = toset([
-    "roles/cloudsql.client",
-    "roles/logging.logWriter",
-  ])
-
-  project = var.project_id
-  role    = each.value
-  member  = "serviceAccount:${google_service_account.poc.email}"
-}
-
 resource "google_project_iam_member" "migrate" {
   for_each = toset([
     "roles/cloudsql.client",
@@ -116,4 +106,41 @@ resource "google_storage_bucket_iam_member" "app_artifacts" {
   bucket = var.artifact_bucket
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.app.email}"
+}
+
+# The PoC broker (worker-poc, the app identity, or the LLM identity when its key
+# file is injected) writes each PoC's input here and reads its result back. The
+# poc identity gets nothing: the runner uses signed URLs.
+resource "google_storage_bucket_iam_member" "app_poc_exchange" {
+  bucket = var.poc_exchange_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.app.email}"
+}
+
+resource "google_storage_bucket_iam_member" "llm_poc_exchange" {
+  count = local.grant_llm ? 1 : 0
+
+  bucket = var.poc_exchange_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.llm_service_account_email}"
+}
+
+###############################################################################
+# Signing and the PoC job's identity
+###############################################################################
+
+# Without a key file the broker signs the PoC exchange URLs through IAM
+# signBlob, as itself: Token Creator on its own account, nothing wider.
+resource "google_service_account_iam_member" "app_signs_as_itself" {
+  service_account_id = google_service_account.app.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.app.email}"
+}
+
+# Starting an execution of the poc job runs it as the poc identity. That
+# identity holds no role, so acting as it grants nothing.
+resource "google_service_account_iam_member" "app_runs_as_poc" {
+  service_account_id = google_service_account.poc.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.app.email}"
 }

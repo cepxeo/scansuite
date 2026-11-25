@@ -16,7 +16,11 @@ server {
     # On every response, errors included (always). No page frames the
     # application from another origin. No HSTS: a default installation serves a
     # self-signed certificate, and HSTS would take away the browser's
-    # click-through.
+    # click-through. The application sends the same two headers itself (for
+    # Cloud Run, which has no nginx); nginx drops its copies so that each
+    # header appears once, and adds them to its own error pages too.
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Content-Security-Policy;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Content-Security-Policy "frame-ancestors 'self'" always;
 

@@ -12,15 +12,17 @@
 #   web          Service.
 #   worker-admin Worker pool, queue "admin".
 #   celery-beat  Worker pool, manual scaling pinned to one instance.
-#   worker-poc   Worker pool, queue "poc".  Cloud Run already runs workloads
-#                under gVisor, which isolates the model-written PoC code.
+#   worker-poc   Worker pool, queue "poc": the PoC broker.  It holds the
+#                credentials like the other workers and runs no PoC.
+#   poc          Job, one execution per PoC: the PoC runner.  No ScanSuite
+#                code, no secret, an identity with no roles, a subnet whose
+#                egress rules close the installation's own ranges.
 #   pentest      Job, the AI Pentest runners (below).
 #
 # The /key files (PyArmor licence, service-account JSON) are not mounted.  They
 # arrive as base64 secret env vars and a tiny shell prelude decodes them into
-# /key before the real command runs.  worker-poc
-# is the exception: it runs model-written code, so it gets neither the prelude
-# nor the licence/key secrets in its environment.
+# /key before the real command runs.  The poc job is the exception: it runs
+# model-written code and no protected code, so it gets neither.
 ###############################################################################
 
 locals {
@@ -39,6 +41,12 @@ locals {
     CLOUDRUN_PENTEST_JOB_NAME = "${var.prefix}-pentest"
     # Runners of the whole installation at once (worker/execution/cloudrun.py).
     AI_PENTEST_MAX_RUNNERS = tostring(var.pentest_max_runners)
+    # The PoC broker (worker/execution/poc_backends.py): one execution of the
+    # poc job per PoC, input and result through the exchange bucket.
+    POC_BACKEND           = "cloudrun"
+    CLOUDRUN_POC_JOB_NAME = "${var.prefix}-poc"
+    POC_EXCHANGE_BUCKET   = var.poc_exchange_bucket
+    POC_MAX_RUNNERS       = tostring(var.poc_max_runners)
   })
 
   # Decode the base64 licence into $PYARMOR_RKEY (/key by default; worker-poc
@@ -72,6 +80,7 @@ locals {
   cmd_beat    = concat(local.sh_prefix, ["python", "start_beat.py"])
   cmd_migrate = concat(local.sh_prefix, ["python", "/app/migrate.py"])
   cmd_sast    = concat(local.sh_prefix, ["python", "/app/work_job.py"])
+  cmd_poc     = concat(local.sh_prefix, ["python", "/app/work_poc.py"])
 }
 
 ###############################################################################
@@ -456,7 +465,7 @@ resource "google_cloud_run_v2_worker_pool" "admin" {
       resources {
         limits = {
           cpu    = "1"
-          memory = "2Gi"
+          memory = var.admin_memory
         }
       }
     }
@@ -549,11 +558,10 @@ resource "google_cloud_run_v2_worker_pool" "poc" {
   }
 
   template {
-    # Its own identity: this container executes model-generated exploit code.
-    # var.secret_env_poc is the reduced set - database, broker and the licence
-    # its protected image cannot start without - so SECRET_KEY, the wrapping
-    # keys and the LLM key never enter this environment.
-    service_account = var.poc_service_account_email
+    # The broker: the app identity and the full environment, like worker-admin.
+    # It runs no PoC - each one is an execution of the poc job below - so it
+    # holds credentials like any other worker.
+    service_account = var.app_service_account_email
 
     vpc_access {
       egress = local.vpc_egress
@@ -564,15 +572,11 @@ resource "google_cloud_run_v2_worker_pool" "poc" {
     }
 
     containers {
-      image   = var.image_worker_poc
-      command = concat(local.sh_prefix, ["python", "/app/work_poc.py"])
+      image   = var.image_worker
+      command = local.cmd_poc
 
       dynamic "env" {
-        # The licence is decoded under /tmp (the image used to run as uid
-        # 10001, which cannot create /key). The image now runs as root and
-        # starts each PoC as uid 10002 (worker/ai/poc/execution.py), which
-        # cannot read the root-only licence or the worker's environment.
-        for_each = merge(local.env, { PYARMOR_RKEY = "/tmp/key" })
+        for_each = local.env
         content {
           name  = env.key
           value = env.value
@@ -580,7 +584,7 @@ resource "google_cloud_run_v2_worker_pool" "poc" {
       }
 
       dynamic "env" {
-        for_each = var.secret_env_poc
+        for_each = var.secret_env
         content {
           name = env.key
           value_source {
@@ -596,6 +600,60 @@ resource "google_cloud_run_v2_worker_pool" "poc" {
         limits = {
           cpu    = "1"
           memory = "2Gi"
+        }
+      }
+    }
+  }
+}
+
+###############################################################################
+# PoC runner job
+###############################################################################
+#
+# One execution per PoC, started by the broker (worker/execution/
+# poc_backends.py) with two overrides: POC_INPUT_URL and POC_OUTPUT_URL, signed
+# URLs for that PoC's two objects in the exchange bucket. Nothing else: no
+# ScanSuite code in the image, no secret, no licence, and an identity with no
+# roles, so neither the environment nor the metadata token opens anything. Its
+# subnet's egress rule (network module, poc_runner_deny) closes Cloud SQL,
+# Memorystore and the workloads' subnet; the targets stay reachable.
+
+resource "google_cloud_run_v2_job" "poc" {
+  project             = var.project_id
+  name                = "${var.prefix}-poc"
+  location            = var.region
+  labels              = var.labels
+  deletion_protection = false
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account = var.poc_service_account_email
+      # A PoC is not retried: a second run against a live target is the
+      # member's decision. The broker reports a failed execution as failed.
+      max_retries = 0
+      timeout     = "${var.poc_task_timeout_seconds}s"
+
+      vpc_access {
+        egress = "ALL_TRAFFIC"
+        network_interfaces {
+          network    = var.network_name
+          subnetwork = var.poc_subnet_name
+          tags       = ["poc-runner"]
+        }
+      }
+
+      containers {
+        image   = var.image_poc_runner
+        command = ["python", "/runner/runner.py", "once"]
+
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "1Gi"
+          }
         }
       }
     }
@@ -626,6 +684,15 @@ resource "google_cloud_run_v2_job_iam_member" "pentest_invoker" {
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_job.pentest.name
+  role     = "roles/run.jobsExecutorWithOverrides"
+  member   = "serviceAccount:${var.app_service_account_email}"
+}
+
+# The PoC broker starts a runner execution per PoC with its two URLs.
+resource "google_cloud_run_v2_job_iam_member" "poc_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.poc.name
   role     = "roles/run.jobsExecutorWithOverrides"
   member   = "serviceAccount:${var.app_service_account_email}"
 }
