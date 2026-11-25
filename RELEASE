@@ -1,6 +1,6 @@
 product=ScanSuite AI
 release=1.0.0
-commit=2d420a7
-built=2026-11-25T16:54:07Z
+commit=19b7a14
+built=2026-11-25T18:17:07Z
 images=appsec4u/ai-web, appsec4u/ai-worker, appsec4u/ai-worker-pentest, appsec4u/ai-poc-runner
 tag_format=<licence code>

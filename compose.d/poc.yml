@@ -39,7 +39,7 @@ services:
       POC_BACKEND: http
       POC_RUNNER_URL: http://poc_runner:8080
       # PoCs in flight at once: the runner's slots.
-      POC_BROKER_CONCURRENCY: ${POC_RUNNER_SLOTS:-2}
+      POC_BROKER_CONCURRENCY: ${POC_RUNNER_SLOTS:-1}
     networks:
       - default
       - poc_control
@@ -48,8 +48,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      poc_runner:
-        condition: service_started
 
   poc_runner:
     image: ${IMAGE_PREFIX:-appsec4u}/${IMAGE_POC_RUNNER:-ai-poc-runner}:${SCANSUITE_TAG:?run ./scansuite install <code> first}
@@ -82,16 +80,21 @@ services:
     # The only setting it gets: the token the broker presents. No env_file.
     environment:
       POC_RUNNER_TOKEN: ${POC_RUNNER_TOKEN:?run ./scansuite start to generate POC_RUNNER_TOKEN}
-      POC_RUNNER_SLOTS: ${POC_RUNNER_SLOTS:-2}
+      POC_RUNNER_SLOTS: ${POC_RUNNER_SLOTS:-1}
       TZ: ${TZ:-Europe/Moscow}
     networks:
       - poc_control
       - poc_egress
 
 networks:
-  # The broker and the runner, and nothing else; no way out.
+  # The broker and the runner, and nothing else; no way out. A fixed subnet:
+  # "internal" does not close the bridge's own address (the host's), which the
+  # installer's firewall rules do.
   poc_control:
     internal: true
+    ipam:
+      config:
+        - subnet: ${POC_CONTROL_SUBNET:-172.30.251.0/24}
   # The runner's way to the targets. A fixed subnet, so the installer's
   # firewall rules can name it.
   poc_egress:
