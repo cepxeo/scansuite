@@ -272,6 +272,10 @@ a deploy host that cannot reach the Terraform registry. `web_allowed_cidrs` and
 `domain_name` are not used here, and the uptime alert is left out, because
 Google's probers cannot reach an internal address.
 
+Here the exploitable vulnerabilities database comes with each release instead of
+the daily feed from github.com. To keep it current, copy the feed's releases to
+an internal HTTPS server and set `vulndb_feed_url` to it.
+
 **D. Another region.** Set the region and a zone of it together; the zone
 places Redis:
 

@@ -83,9 +83,11 @@ dockerhub_username = "<user sent with your licence>"
 #   AI_PENTEST_SINGLE_SHARD_ORIGINS = "0"   # every web origin gets its own runner (default 4)
 #   MAX_UPLOAD_MB                   = "2000"
 #   SCANSUITE_PROMPT_CACHE_LONG_TTL = "1h"  # or "5m"; SCANSUITE_PROMPT_CACHE = "0" turns caching off
-#   VULNDB_FEED_URL                 = "https://feed.example.com/scansuite"  # with VULNDB_FEED_PUBLIC_KEY
-#   VULNDB_FAST_LANE                = "1"   # CISA KEV and SSVC "active" CVEs every hour
 # }
+# The exploitable-CVE database: the signed daily feed and the hourly CISA KEV
+# fast lane are on with Cloud NAT and off with egress_mode = "none":
+# vulndb_feed_url  = ""      # only the database that comes with each image; or a mirror's URL
+# vulndb_fast_lane = false
 # pentest_cpu                  = "4"
 # pentest_memory               = "16Gi"
 # pentest_task_timeout_seconds = 86400

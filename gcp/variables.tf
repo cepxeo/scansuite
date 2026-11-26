@@ -341,6 +341,30 @@ variable "manage_dns" {
   default     = false
 }
 
+variable "vulndb_feed_url" {
+  description = <<-EOT
+    The signed daily exploitable-CVE feed the admin workers load every 3 hours
+    (images/vulndb/README.md). Unset: the product's publication on github.com,
+    or none with egress_mode = "none", where nothing outside the VPC is
+    reachable. "" keeps the database that comes with each
+    image; any other URL is a mirror, which works without egress too.
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "vulndb_feed_public_key" {
+  description = "Ed25519 public key (base64) every pulled feed must be signed with. The same value as VULNDB_FEED_PUBLIC_KEY_DEFAULT in images/installer/manifest/ai.env."
+  type        = string
+  default     = "GL/q3coPaolqXEw66WoGoZLdybVMJjh0ABDA/DcJRh4="
+}
+
+variable "vulndb_fast_lane" {
+  description = "Every hour, list new CISA KEV entries from www.cisa.gov and raw.githubusercontent.com. Off with egress_mode = \"none\"."
+  type        = bool
+  default     = true
+}
+
 variable "timezone" {
   description = "TZ for the containers. celery_beat reads it when building the schedule."
   type        = string
@@ -498,9 +522,7 @@ variable "extra_env" {
     AI Pentest safeguards and run budgets are System settings), the largest upload
     (MAX_UPLOAD_MB, default 2000), Anthropic prompt caching
     (SCANSUITE_PROMPT_CACHE=0 turns it off; SCANSUITE_PROMPT_CACHE_LONG_TTL, 1h
-    or 5m) and the exploitable-CVE feed between releases, all off unless set
-    (VULNDB_FEED_URL with VULNDB_FEED_PUBLIC_KEY pulls a signed feed,
-    VULNDB_FAST_LANE=1 lists CISA KEV and SSVC "active" CVEs hourly). Plain
+    or 5m). The exploitable-CVE feed has variables of its own (vulndb_*). Plain
     values, visible in the service configuration: never a secret. A name the
     deployment sets itself (PS_DATABASE_PORT among them) is refused; the
     deployment has one database account, so PS_MIGRATION_* are not used here.
