@@ -233,6 +233,12 @@ scan is in progress. If you are told that the images for your current code
 were rebuilt, just re-run `./deploy.sh`: it always deploys the image it has
 just copied, even under an unchanged tag, and treats it as a new release.
 
+**The vulnerabilities database.** The workers load the signed daily feed from
+github.com every 3 hours and list new CISA KEV entries every hour. Set
+`vulndb_feed_url = ""` and `vulndb_fast_lane = false` to keep only the
+database that comes with each release, or point `vulndb_feed_url` at your own
+mirror of the feed.
+
 **Your address changed and the UI no longer opens.** Update
 `web_allowed_cidrs` and re-run `./deploy.sh`.
 

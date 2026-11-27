@@ -297,8 +297,18 @@ locals {
     ENABLE_STATIC_SCANS  = var.enable_static_scans
     ENABLE_DYNAMIC_SCANS = var.enable_dynamic_scans
 
+    # The exploitable-CVE feed between releases (worker/vulndb_feed.py),
+    # as the on-premises installer sets it (images/installer/manifest/teams.env).
+    VULNDB_FEED_URL        = local.vulndb_feed_url
+    VULNDB_FEED_PUBLIC_KEY = local.vulndb_feed_url == "" ? "" : var.vulndb_feed_public_key
+    VULNDB_FAST_LANE       = var.vulndb_fast_lane && var.egress_mode != "none" ? "1" : "0"
+
     TZ = var.timezone
   }
+
+  # Unset: the product's publication, which needs the internet.
+  vulndb_feed_url = (var.vulndb_feed_url != null ? var.vulndb_feed_url :
+  var.egress_mode == "none" ? "" : "https://github.com/cepxeo/vulndb-feed/releases/latest/download")
 
   app_config = merge(var.extra_env, local.managed_config)
 

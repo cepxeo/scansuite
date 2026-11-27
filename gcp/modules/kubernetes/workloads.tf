@@ -384,9 +384,10 @@ resource "kubernetes_deployment_v1" "worker_admin" {
 ###############################################################################
 # celery-beat
 #
-# Exactly one instance, always. start_beat.py builds the whole beat_schedule
-# once at import time from the SavedScan table, so a schedule edited in the UI
-# is invisible until this process restarts - hence the CronJob below.
+# Exactly one instance, always. start_beat.py re-reads the SavedScan table every
+# minute, so a schedule edited in the UI needs no restart; the hourly
+# beat-restarter CronJob that once stood in for that is gone, as a restart loses
+# whatever falls due while beat is down.
 ###############################################################################
 
 resource "kubernetes_deployment_v1" "celery_beat" {
@@ -589,98 +590,4 @@ resource "kubernetes_deployment_v1" "worker_poc" {
   }
 
   depends_on = [kubernetes_config_map_v1.app, kubernetes_secret_v1.app]
-}
-
-###############################################################################
-# beat-restarter
-#
-# Workaround, not architecture. start_beat.py reads the schedule once, so a scan
-# scheduled through the UI would otherwise never fire. Rolling the deployment
-# hourly bounds the delay at an hour. Delete this the day start_beat.py grows a
-# scheduler that re-reads SavedScan.
-###############################################################################
-
-resource "kubernetes_service_account_v1" "beat_restarter" {
-  metadata {
-    name      = "beat-restarter"
-    namespace = local.ns
-  }
-
-  depends_on = [kubernetes_namespace_v1.this]
-}
-
-resource "kubernetes_role_v1" "beat_restarter" {
-  metadata {
-    name      = "beat-restarter"
-    namespace = local.ns
-  }
-
-  rule {
-    api_groups     = ["apps"]
-    resources      = ["deployments"]
-    resource_names = ["celery-beat"]
-    verbs          = ["get", "patch"]
-  }
-
-  depends_on = [kubernetes_namespace_v1.this]
-}
-
-resource "kubernetes_role_binding_v1" "beat_restarter" {
-  metadata {
-    name      = "beat-restarter"
-    namespace = local.ns
-  }
-
-  role_ref {
-    api_group = "rbac.authorization.k8s.io"
-    kind      = "Role"
-    name      = kubernetes_role_v1.beat_restarter.metadata[0].name
-  }
-
-  subject {
-    kind      = "ServiceAccount"
-    name      = kubernetes_service_account_v1.beat_restarter.metadata[0].name
-    namespace = local.ns
-  }
-}
-
-resource "kubernetes_cron_job_v1" "beat_restarter" {
-  metadata {
-    name      = "beat-restarter"
-    namespace = local.ns
-  }
-
-  spec {
-    schedule                      = "7 * * * *"
-    concurrency_policy            = "Forbid"
-    successful_jobs_history_limit = 1
-    failed_jobs_history_limit     = 3
-
-    job_template {
-      metadata {}
-      spec {
-        backoff_limit = 2
-        template {
-          metadata {}
-          spec {
-            service_account_name = kubernetes_service_account_v1.beat_restarter.metadata[0].name
-            restart_policy       = "OnFailure"
-
-            container {
-              name    = "kubectl"
-              image   = "bitnami/kubectl:1.31"
-              command = ["kubectl", "rollout", "restart", "deployment/celery-beat", "-n", local.ns]
-
-              resources {
-                requests = { cpu = "10m", memory = "64Mi" }
-                limits   = { cpu = "200m", memory = "256Mi" }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [kubernetes_role_binding_v1.beat_restarter, kubernetes_deployment_v1.celery_beat]
 }

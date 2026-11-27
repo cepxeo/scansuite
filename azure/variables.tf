@@ -124,6 +124,24 @@ variable "timezone" {
   default     = "Europe/Berlin"
 }
 
+variable "vulndb_feed_url" {
+  description = "The signed daily exploitable-CVE feed the workers load every 3 hours (images/vulndb/README.md). Unset: the product's publication on github.com. \"\" keeps the database that comes with each image; any other URL is a mirror."
+  type        = string
+  default     = null
+}
+
+variable "vulndb_feed_public_key" {
+  description = "Ed25519 public key (base64) every pulled feed must be signed with. The same value as VULNDB_FEED_PUBLIC_KEY_DEFAULT in images/installer/manifest/teams.env."
+  type        = string
+  default     = "GL/q3coPaolqXEw66WoGoZLdybVMJjh0ABDA/DcJRh4="
+}
+
+variable "vulndb_fast_lane" {
+  description = "Every hour, list new CISA KEV entries from cisa.gov and raw.githubusercontent.com."
+  type        = bool
+  default     = true
+}
+
 variable "enable_static_scans" {
   type    = string
   default = "True"

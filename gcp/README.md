@@ -268,7 +268,10 @@ VPC and forwards the `run.app` zone to the inbound forwarders
 explained, and `scripts/bundle-providers.sh` packs the Terraform providers for
 a deploy host that cannot reach the Terraform registry. `web_allowed_cidrs` and
 `domain_name` are not used here, and the uptime alert is left out, because
-Google's probers cannot reach an internal address.
+Google's probers cannot reach an internal address. The exploitable
+vulnerabilities database then comes with each release instead of the daily
+feed from github.com; to keep it current, copy the feed's releases to an
+internal HTTPS server and set `vulndb_feed_url` to it.
 
 **D. Another region.** Set the region and its zones together; the zones place
 Redis and the database's standby:

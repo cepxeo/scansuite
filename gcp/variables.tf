@@ -412,6 +412,30 @@ variable "enable_static_scans" {
   default = "True"
 }
 
+variable "vulndb_feed_url" {
+  description = <<-EOT
+    The signed daily exploitable-CVE feed the workers load every 3 hours
+    (images/vulndb/README.md). Unset: the product's publication on github.com,
+    or none with egress_mode = "none", where nothing outside the VPC is
+    reachable. "" keeps the database that comes with each image; any other
+    URL is a mirror, which works with egress_mode = "none" too.
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "vulndb_feed_public_key" {
+  description = "Ed25519 public key (base64) every pulled feed must be signed with. The same value as VULNDB_FEED_PUBLIC_KEY_DEFAULT in images/installer/manifest/teams.env."
+  type        = string
+  default     = "GL/q3coPaolqXEw66WoGoZLdybVMJjh0ABDA/DcJRh4="
+}
+
+variable "vulndb_fast_lane" {
+  description = "Every hour, list new CISA KEV entries from cisa.gov and raw.githubusercontent.com. Off with egress_mode = \"none\"."
+  type        = bool
+  default     = true
+}
+
 variable "enable_dynamic_scans" {
   description = "Off by default. Dynamic and infrastructure scanning launch scanner containers through a Docker daemon, and this deployment has none - see README, 'Static analysis only'."
   type        = string
