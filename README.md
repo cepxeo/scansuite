@@ -168,3 +168,4 @@ Keep the password file off the backup disk.
 | `services/nginx/certs/` | the TLS certificate nginx serves and its key — a self-signed pair created at install; replace both with your own; updates keep the pair |
 | `images.d/` | the platform images (nginx, Redis, PostgreSQL, SeaweedFS) this release pulls besides its own |
 | `RELEASE` | which release this is, and what it was built from |
+| `/etc/systemd/system/scansuite.service`, `scansuite-firewall.service` | the boot services, written by `install` and `update`: the first starts the installation; the second puts the PoC runner's firewall rules in place before Docker starts, so a runner Docker restarts after a crash is never without them |
