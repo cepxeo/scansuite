@@ -58,7 +58,8 @@ on top of what ScanSuite itself uses (`docker stats`), and set
 divided by 2 GB. For example, a 16-core, 32 GB host running `start 6` uses about
 9 GB, which leaves room for 8 runners. `AI_PENTEST_RUNNER_CPU` and
 `AI_PENTEST_RUNNER_MEMORY` (4 and 16g) are limits for one runner, not
-reservations. More runners than your AI provider's rate limit allows only make
+reservations; on a host with fewer CPUs, the runner and the PoC runner
+(`POC_RUNNER_CPU`, 2) are limited to the CPUs it has. More runners than your AI provider's rate limit allows only make
 them wait longer: when the scan log reports rate-limited requests, add no more.
 
 ### Upgrading

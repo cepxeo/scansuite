@@ -73,7 +73,8 @@ services:
       - no-new-privileges:true
     pids_limit: 128
     mem_limit: 1536m
-    cpus: 2
+    # The installer lowers it to the host's CPU count when that is smaller.
+    cpus: ${POC_RUNNER_CPU:-2}
     init: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=128m
